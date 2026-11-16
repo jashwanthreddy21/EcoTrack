@@ -1085,9 +1085,6 @@ async function fetchAuthoritativeTelanganaDistricts(baseDistricts: DistrictLocat
   return inFlightTelanganaSync;
 }
 
-// Pre-warm Telangana 33-district cache on server startup so first modal open is instantaneous
-void fetchAuthoritativeTelanganaDistricts(districts.filter(d => d.active && d.stateId === 'state-ts'));
-
 // Districts
 app.get('/api/locations/districts', async (req: Request, res: Response) => {
   const { stateId } = req.query;
@@ -2578,14 +2575,34 @@ async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
 
   if (!isProd) {
-    // Dynamic import of vite in dev mode
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-      root: __dirname
+    // Initialize Vite middleware in the background so Express binds port 3000 immediately
+    let viteMiddleware: express.RequestHandler | null = null;
+    const viteReady = import('vite')
+      .then(({ createServer: createViteServer }) =>
+        createViteServer({
+          server: { middlewareMode: true },
+          appType: 'spa',
+          root: __dirname
+        })
+      )
+      .then((vite) => {
+        viteMiddleware = vite.middlewares as unknown as express.RequestHandler;
+      });
+
+    app.use((req, res, next) => {
+      if (viteMiddleware) {
+        return viteMiddleware(req, res, next);
+      }
+      viteReady
+        .then(() => {
+          if (viteMiddleware) {
+            viteMiddleware(req, res, next);
+          } else {
+            next();
+          }
+        })
+        .catch(next);
     });
-    app.use(vite.middlewares);
   } else {
     // In production, serve dist static files
     app.use(express.static(path.resolve(__dirname, 'dist')));
@@ -2596,6 +2613,8 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`EcoTrack Full-Stack Platform running at http://0.0.0.0:${PORT}`);
+    // Pre-warm Telangana 33-district cache right after port bind
+    void fetchAuthoritativeTelanganaDistricts(districts.filter(d => d.active && d.stateId === 'state-ts'));
   });
 }
 
