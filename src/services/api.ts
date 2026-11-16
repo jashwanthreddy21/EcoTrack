@@ -20,7 +20,8 @@ import {
 } from '../types/index.ts';
 import { OptimizedAreaRouteResult } from '../utils/ecoLogic.ts';
 
-const API_BASE = '/api';
+const RAW_API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+const API_BASE = RAW_API_BASE ? RAW_API_BASE.replace(/\/+$/, '') : '/api';
 
 class ApiClient {
   private token: string | null = null;
