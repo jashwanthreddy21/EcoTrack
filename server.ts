@@ -1958,11 +1958,13 @@ app.post('/api/routes/optimize-area', async (req: Request, res: Response) => {
   const enrichedPickups = pickups.map((p) => enrichPickupWithCitizenPhone(p));
   const pendingStops = buildPendingAreaStops(enrichedPickups, resolvedArea, households);
 
-  const googleMapsApiKey = (
+  const rawMapsKey = (
     process.env.GOOGLE_MAPS_API_KEY ||
     process.env.VITE_GOOGLE_MAPS_API_KEY ||
     ''
   ).trim();
+  const matchMapsKey = rawMapsKey.match(/[?&]key=([^&]+)/);
+  const googleMapsApiKey = matchMapsKey ? matchMapsKey[1] : rawMapsKey;
   const googleMapsConfigured = Boolean(googleMapsApiKey);
 
   if (pendingStops.length === 0) {

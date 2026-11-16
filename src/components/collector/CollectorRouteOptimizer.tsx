@@ -409,7 +409,9 @@ export const CollectorRouteOptimizer: React.FC<CollectorRouteOptimizerProps> = (
   onQuickScanPickup,
   onSelectStopOnEcoMap
 }) => {
-  const googleMapsApiKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '').trim();
+  const rawMapsKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '').trim();
+  const matchKey = rawMapsKey.match(/[?&]key=([^&]+)/);
+  const googleMapsApiKey = matchKey ? matchKey[1] : rawMapsKey;
   const [routeResult, setRouteResult] = useState<OptimizedAreaRouteResult | null>(null);
   const [sdkOverride, setSdkOverride] = useState<SdkRouteUpdate | null>(null);
   const [isCalculating, setIsCalculating] = useState<boolean>(false);
