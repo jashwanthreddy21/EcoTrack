@@ -68,7 +68,7 @@ kubectl get svc -n ecotrack
 3. Configure the service:
    - **Name**: `ecotrack-api`
    - **Runtime**: `Node`
-   - **Build Command**: `npm install`
+   - **Build Command**: `npm install --legacy-peer-deps`
    - **Start Command**: `npm start`
    - **Health Check Path**: `/api/health`
 4. Add Environment Variables under the **Environment** tab:
