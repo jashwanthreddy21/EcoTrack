@@ -1,0 +1,142 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Registered user profile with role-based access",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "enum": ["admin", "supervisor", "collector", "citizen"] },
+        "phone": { "type": "string", "maxLength": 20 },
+        "area": { "type": "string", "maxLength": 100 },
+        "ward": { "type": "string", "maxLength": 50 },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "Household": {
+      "title": "Household",
+      "description": "Citizen residential collection address",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "citizenId": { "type": "string" },
+        "citizenName": { "type": "string", "maxLength": 100 },
+        "address": { "type": "string", "maxLength": 255 },
+        "houseNumber": { "type": "string", "maxLength": 50 },
+        "area": { "type": "string", "maxLength": 100 },
+        "ward": { "type": "string", "maxLength": 50 },
+        "landmark": { "type": "string", "maxLength": 100 },
+        "pincode": { "type": "string", "maxLength": 10 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "citizenId", "address", "area", "ward"]
+    },
+    "PickupRequest": {
+      "title": "PickupRequest",
+      "description": "Citizen waste collection request",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "requestNumber": { "type": "string", "maxLength": 30 },
+        "citizenId": { "type": "string" },
+        "citizenName": { "type": "string", "maxLength": 100 },
+        "householdId": { "type": "string" },
+        "address": { "type": "string", "maxLength": 255 },
+        "area": { "type": "string", "maxLength": 100 },
+        "ward": { "type": "string", "maxLength": 50 },
+        "categoryId": { "type": "string" },
+        "categoryName": { "type": "string", "maxLength": 50 },
+        "quantityKg": { "type": "number" },
+        "preferredDate": { "type": "string" },
+        "preferredTimeSlot": { "type": "string", "maxLength": 50 },
+        "specialInstructions": { "type": "string", "maxLength": 500 },
+        "imageUrl": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": [
+            "Submitted",
+            "Pending Approval",
+            "Approved",
+            "Scheduled",
+            "Assigned",
+            "Collector On The Way",
+            "In Progress",
+            "Completed",
+            "Missed",
+            "Cancelled",
+            "Rejected"
+          ]
+        },
+        "assignedCollectorId": { "type": "string" },
+        "assignedCollectorName": { "type": "string", "maxLength": 100 },
+        "scheduledDate": { "type": "string" },
+        "scheduledTimeSlot": { "type": "string", "maxLength": 50 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "requestNumber", "citizenId", "categoryId", "status"]
+    },
+    "CollectionSchedule": {
+      "title": "CollectionSchedule",
+      "description": "Area waste collection schedule",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "timeSlot": { "type": "string", "maxLength": 50 },
+        "area": { "type": "string", "maxLength": 100 },
+        "ward": { "type": "string", "maxLength": 50 },
+        "collectorId": { "type": "string" },
+        "collectorName": { "type": "string", "maxLength": 100 },
+        "totalPickups": { "type": "number" },
+        "completedPickups": { "type": "number" },
+        "pendingPickups": { "type": "number" },
+        "missedPickups": { "type": "number" },
+        "status": { "type": "string", "enum": ["Scheduled", "In Progress", "Completed"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "date", "timeSlot", "area"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "User notification event",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string", "maxLength": 100 },
+        "message": { "type": "string", "maxLength": 500 },
+        "type": { "type": "string", "maxLength": 50 },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "title", "message"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile collection"
+    },
+    "/households/{householdId}": {
+      "schema": "Household",
+      "description": "Citizen households"
+    },
+    "/pickup_requests/{requestId}": {
+      "schema": "PickupRequest",
+      "description": "Waste pickup requests"
+    },
+    "/collection_schedules/{scheduleId}": {
+      "schema": "CollectionSchedule",
+      "description": "Municipal collection schedules"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "In-app notifications"
+    }
+  }
+}

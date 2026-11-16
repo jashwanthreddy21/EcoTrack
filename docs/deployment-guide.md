@@ -1,0 +1,60 @@
+# EcoTrack Deployment & DevOps Guide
+## Docker, Kubernetes & Local Runbook
+
+---
+
+## 1. Quick Local Execution
+```bash
+# Install dependencies
+npm install
+
+# Run unit tests
+npx --yes tsx --test src/utils/ecoLogic.test.ts
+
+# Start the full-stack development server (Express + Vite on Port 3000)
+npm run dev
+```
+Open your browser at `http://localhost:3000`.
+
+---
+
+## 2. Docker Compose Deployment
+To launch the complete container stack (Express Backend + PostgreSQL 16):
+```bash
+docker compose up --build -d
+```
+Inspect logs and health:
+```bash
+docker compose logs -f backend
+curl -f http://localhost:3000/api/health
+```
+Teardown:
+```bash
+docker compose down -v
+```
+
+---
+
+## 3. Kubernetes Cluster Deployment (Minikube / Docker Desktop)
+Apply the manifests sequentially:
+```bash
+# 1. Create dedicated namespace
+kubectl apply -f k8s/namespace.yaml
+
+# 2. Apply ConfigMap and Secrets
+kubectl apply -f k8s/configmap.yaml
+kubectl apply -f k8s/secret.example.yaml
+
+# 3. Deploy PostgreSQL Database with PVC storage
+kubectl apply -f k8s/postgres-deployment.yaml
+kubectl apply -f k8s/postgres-service.yaml
+
+# 4. Deploy Backend and Frontend Services
+kubectl apply -f k8s/backend-deployment.yaml
+kubectl apply -f k8s/backend-service.yaml
+kubectl apply -f k8s/frontend-deployment.yaml
+
+# 5. Verify Pods and Services
+kubectl get pods -n ecotrack
+kubectl get svc -n ecotrack
+```

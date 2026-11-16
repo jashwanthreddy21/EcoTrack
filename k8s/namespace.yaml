@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ecotrack
+  labels:
+    app.kubernetes.io/name: ecotrack
+    app.kubernetes.io/part-of: municipal-waste-system
+    project: sru-devops-54
