@@ -81,16 +81,18 @@ let notifications = [...INITIAL_NOTIFICATIONS];
 let requestCounter = 1015;
 
 // Backend-only unique Administrator credentials, seeded staff passwords & registered user password store
-const ADMIN_LOGIN_EMAIL = (process.env.ADMIN_EMAIL || 'admin@ecotrack.com').trim().toLowerCase();
-const ADMIN_LOGIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Admin123435';
+const ADMIN_LOGIN_EMAIL = (process.env.ADMIN_EMAIL || 'admin@ecotrack.org').trim().toLowerCase();
+const ADMIN_LOGIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Admin@1234';
 const SEEDED_STAFF_PASSWORDS: Record<string, string> = {
   'supervisor@ecotrack.com': 'Supervisor12345',
   'supervisor.south@ecotrack.org': 'Supervisor12345',
+  'supervisor.north@ecotrack.org': 'Supervisor@1234',
   'collector1@ecotrack.com': 'Collector@1',
   'collector2@ecotrack.com': 'Collector@2',
   'sunita.collector@ecotrack.org': 'Collector@3',
   'vikram.collector@ecotrack.org': 'Collector@4',
-  'anita.collector@ecotrack.org': 'Collector@5'
+  'anita.collector@ecotrack.org': 'Collector@5',
+  'rajesh.collector@ecotrack.org': 'Collector@1234'
 };
 const registeredPasswords = new Map<string, string>();
 
@@ -636,7 +638,7 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
         : '';
   const normalizedIdentifier = rawIdentifier.trim().toLowerCase();
 
-  const user = normalizedIdentifier
+  let user = normalizedIdentifier
     ? users.find(
         u =>
           u.email.toLowerCase() === normalizedIdentifier ||
@@ -644,13 +646,27 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
       )
     : undefined;
 
+  // Support admin email aliases (admin@ecotrack.org <-> admin@ecotrack.com <-> ADMIN_LOGIN_EMAIL)
+  if (!user && (normalizedIdentifier === 'admin@ecotrack.org' || normalizedIdentifier === 'admin@ecotrack.com' || normalizedIdentifier === ADMIN_LOGIN_EMAIL)) {
+    user = users.find(u => u.role === 'admin');
+  }
+
+  // Support supervisor and collector aliases from demo docs
+  if (!user && normalizedIdentifier === 'supervisor.north@ecotrack.org') {
+    user = users.find(u => u.role === 'supervisor');
+  }
+  if (!user && normalizedIdentifier === 'rajesh.collector@ecotrack.org') {
+    user = users.find(u => u.role === 'collector');
+  }
+
   const registeredPwd = user
     ? registeredPasswords.get(user.email.toLowerCase()) ??
       (user.username ? registeredPasswords.get(user.username.toLowerCase()) : undefined)
     : undefined;
 
   const accountPwd = user
-    ? SEEDED_STAFF_PASSWORDS[user.email.toLowerCase()] ??
+    ? SEEDED_STAFF_PASSWORDS[normalizedIdentifier] ??
+      SEEDED_STAFF_PASSWORDS[user.email.toLowerCase()] ??
       (user.username ? SEEDED_STAFF_PASSWORDS[user.username.toLowerCase()] : undefined)
     : undefined;
 

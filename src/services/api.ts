@@ -21,7 +21,11 @@ import {
 import { OptimizedAreaRouteResult } from '../utils/ecoLogic.ts';
 
 const RAW_API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
-const API_BASE = RAW_API_BASE ? RAW_API_BASE.replace(/\/+$/, '') : '/api';
+let base = RAW_API_BASE ? RAW_API_BASE.replace(/\/+$/, '') : '/api';
+if (base.startsWith('http') && !base.endsWith('/api')) {
+  base = `${base}/api`;
+}
+const API_BASE = base;
 
 class ApiClient {
   private token: string | null = null;
@@ -40,18 +44,35 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
 
-    const res = await fetch(`${API_BASE}${endpoint}`, {
-      ...options,
-      headers
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers
+      });
+    } catch (networkErr: any) {
+      throw new Error(
+        `Cannot connect to backend API (${API_BASE}). Please check your VITE_API_URL and ensure the Render service is awake: ${networkErr?.message || networkErr}`
+      );
+    }
 
     if (!res.ok) {
-      let errorMsg = 'An error occurred during request processing';
+      let errorMsg = `Server error (${res.status})`;
       try {
-        const errorData = await res.json();
-        errorMsg = errorData.error || (errorData.errors ? errorData.errors.join(', ') : errorMsg);
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const errorData = await res.json();
+          errorMsg = errorData.error || (errorData.errors ? errorData.errors.join(', ') : errorMsg);
+        } else {
+          const text = await res.text();
+          if (text.includes('<!doctype html>') || text.includes('<html')) {
+            errorMsg = `API endpoint "${API_BASE}${endpoint}" returned HTML instead of JSON. Ensure VITE_API_URL is configured in Vercel to your Render backend URL (e.g. https://<render-service>.onrender.com/api) and trigger a redeploy in Vercel.`;
+          } else {
+            errorMsg = text.slice(0, 150) || res.statusText || errorMsg;
+          }
+        }
       } catch {
-        errorMsg = res.statusText || errorMsg;
+        errorMsg = res.statusText || `Request failed with HTTP ${res.status}`;
       }
       throw new Error(errorMsg);
     }
