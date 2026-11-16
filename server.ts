@@ -67,7 +67,7 @@ let pickups: PickupRequest[] = [...INITIAL_PICKUPS];
 let schedules = [...INITIAL_SCHEDULES];
 let areas = [...INITIAL_AREAS];
 let notifications = [...INITIAL_NOTIFICATIONS];
-let requestCounter = 1012;
+let requestCounter = 1015;
 
 // Backend-only unique Administrator credentials, seeded staff passwords & registered user password store
 const ADMIN_LOGIN_EMAIL = (process.env.ADMIN_EMAIL || 'admin@ecotrack.com').trim().toLowerCase();
@@ -1570,6 +1570,11 @@ app.patch('/api/pickups/:id/status', (req: Request, res: Response) => {
   if (req.body.completionRemarks) {
     pickup.completionRemarks = req.body.completionRemarks;
   }
+  if (typeof req.body.segregationVerified === 'boolean') {
+    pickup.segregationVerified = req.body.segregationVerified;
+  } else if (nextStatus === 'Completed' && pickup.segregationVerified === undefined) {
+    pickup.segregationVerified = pickup.categoryId !== 'cat-general';
+  }
   if (nextStatus === 'Completed') {
     pickup.completedAt = new Date().toISOString();
   }
@@ -1642,6 +1647,10 @@ app.post('/api/pickups/:id/verify-qr', (req: Request, res: Response) => {
   targetPickup.qrScannedCode = resolution.parsedCode;
   targetPickup.qrVerifiedAt = now;
   targetPickup.qrVerifiedBy = verifierName;
+  targetPickup.segregationVerified =
+    typeof req.body.segregationVerified === 'boolean'
+      ? req.body.segregationVerified
+      : targetPickup.categoryId !== 'cat-general';
   targetPickup.completedAt = now;
   targetPickup.updatedAt = now;
   targetPickup.completionRemarks =

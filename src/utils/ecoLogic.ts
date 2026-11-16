@@ -1,4 +1,12 @@
-import { PickupStatus, BotActionBadge, ServiceAreaRequest, UserRole } from '../types/index.ts';
+import {
+  PickupStatus,
+  BotActionBadge,
+  ServiceAreaRequest,
+  UserRole,
+  CitizenBadge,
+  CitizenGamificationSummary,
+  CitizenPointHistoryEntry
+} from '../types/index.ts';
 
 /**
  * Calculates the collection completion rate percentage.
@@ -1631,6 +1639,336 @@ export function parseGoogleComputeRoutesResponse(
         : [[origin.latitude, origin.longitude], ...stops.map((s) => [s.latitude, s.longitude] as [number, number])],
     stops,
     calculatedAt: new Date().toISOString()
+  };
+}
+
+// -------------------------------------------------------------
+// CITIZEN GAMIFICATION & VIRTUAL BADGES ENGINE
+// -------------------------------------------------------------
+export interface GamificationPickupInput {
+  id: string;
+  requestNumber?: string;
+  categoryId?: string;
+  categoryName?: string;
+  quantityKg?: number;
+  actualQuantityKg?: number;
+  status: PickupStatus | string;
+  qrVerified?: boolean;
+  qrVerifiedAt?: string;
+  segregationVerified?: boolean;
+  completedAt?: string;
+  updatedAt?: string;
+}
+
+const RECYCLABLE_STREAM_IDS = new Set([
+  'cat-recyclable',
+  'cat-plastic',
+  'cat-paper',
+  'cat-electronic'
+]);
+
+const RECYCLABLE_STREAM_NAMES = new Set([
+  'recyclable waste',
+  'plastic waste',
+  'paper waste',
+  'electronic waste'
+]);
+
+/**
+ * Determines whether a completed pickup satisfies municipal source segregation rules.
+ * Sorted streams (Organic, Recyclable, Plastic, Paper, Electronic, Hazardous, Construction)
+ * qualify unless explicitly flagged false (`segregationVerified === false`), while General Waste
+ * qualifies only when explicitly verified by the collector (`segregationVerified === true`).
+ */
+export function isProperlySegregatedPickup(pickup: GamificationPickupInput): boolean {
+  if (!pickup || pickup.status !== 'Completed') return false;
+  if (pickup.segregationVerified === false) return false;
+  if (pickup.segregationVerified === true) return true;
+
+  const catId = (pickup.categoryId || '').trim().toLowerCase();
+  const catName = (pickup.categoryName || '').trim().toLowerCase();
+  if (catId === 'cat-general' || catName === 'general waste') return false;
+  return Boolean(catId || catName);
+}
+
+function isRecyclableStreamPickup(pickup: GamificationPickupInput): boolean {
+  if (!isProperlySegregatedPickup(pickup)) return false;
+  const catId = (pickup.categoryId || '').trim().toLowerCase();
+  const catName = (pickup.categoryName || '').trim().toLowerCase();
+  return RECYCLABLE_STREAM_IDS.has(catId) || RECYCLABLE_STREAM_NAMES.has(catName);
+}
+
+/**
+ * Evaluates citizen collection frequency, segregation accuracy, diverted weight,
+ * eco-points, tier level, and earned/in-progress virtual badges.
+ */
+export function evaluateCitizenGamification(
+  citizenPickups: GamificationPickupInput[]
+): CitizenGamificationSummary {
+  const safeList = Array.isArray(citizenPickups) ? citizenPickups : [];
+  const completed = safeList
+    .filter((p) => p.status === 'Completed')
+    .sort((a, b) => {
+      const ta = new Date(a.completedAt || a.updatedAt || 0).getTime();
+      const tb = new Date(b.completedAt || b.updatedAt || 0).getTime();
+      return ta - tb;
+    });
+
+  const segregated = completed.filter(isProperlySegregatedPickup);
+  const recycled = segregated.filter(isRecyclableStreamPickup);
+  const qrVerifiedSegregated = segregated.filter((p) => Boolean(p.qrVerified));
+
+  const distinctCategories = new Set(
+    segregated.map((p) => (p.categoryName || p.categoryId || 'sorted').trim().toLowerCase())
+  );
+
+  const totalDivertedKg = Number(
+    segregated
+      .reduce((sum, p) => {
+        const kg = Number(p.actualQuantityKg ?? p.quantityKg ?? 0);
+        return sum + (Number.isFinite(kg) && kg > 0 ? kg : 0);
+      }, 0)
+      .toFixed(1)
+  );
+
+  const completedPickupsCount = completed.length;
+  const segregatedPickupsCount = segregated.length;
+  const recycledStreamCount = recycled.length;
+  const distinctSegregatedCategories = distinctCategories.size;
+
+  const segregationRatePercent =
+    completedPickupsCount > 0
+      ? Math.round((segregatedPickupsCount / completedPickupsCount) * 100)
+      : 0;
+
+  // Build itemized Point History activity logs ordered newest-first
+  const pointHistory: CitizenPointHistoryEntry[] = [];
+  const newestFirstCompleted = [...completed].reverse();
+
+  for (const p of newestFirstCompleted) {
+    const reqNumber = p.requestNumber || p.id.toUpperCase();
+    const catName = p.categoryName || 'Municipal Waste';
+    const awardedAt = p.completedAt || p.qrVerifiedAt || p.updatedAt || '';
+    const isSegregated = isProperlySegregatedPickup(p);
+
+    pointHistory.push({
+      id: `${p.id}-pickup-completed`,
+      pickupId: p.id,
+      requestNumber: reqNumber,
+      categoryName: catName,
+      type: 'pickup_completed',
+      title: 'Pickup Completed',
+      reason: `Doorstep collection completed (${catName})`,
+      points: 25,
+      awardedAt
+    });
+
+    if (isSegregated) {
+      pointHistory.push({
+        id: `${p.id}-segregation-bonus`,
+        pickupId: p.id,
+        requestNumber: reqNumber,
+        categoryName: catName,
+        type: 'segregation_bonus',
+        title: 'Source Segregation Verified',
+        reason: `Clean sorting verified for ${catName}`,
+        points: 15,
+        awardedAt
+      });
+
+      if (p.qrVerified) {
+        pointHistory.push({
+          id: `${p.id}-qr-verified`,
+          pickupId: p.id,
+          requestNumber: reqNumber,
+          categoryName: catName,
+          type: 'qr_verified',
+          title: 'QR Container Verified',
+          reason: 'Container label scanned by field collector',
+          points: 10,
+          awardedAt: p.qrVerifiedAt || awardedAt
+        });
+      }
+
+      const rawKg = Number(p.actualQuantityKg ?? p.quantityKg ?? 0);
+      const cleanKg = Number.isFinite(rawKg) && rawKg > 0 ? Math.round(rawKg * 10) / 10 : 0;
+      const weightPts = Math.round(cleanKg * 2);
+      if (weightPts > 0) {
+        pointHistory.push({
+          id: `${p.id}-weight-diverted`,
+          pickupId: p.id,
+          requestNumber: reqNumber,
+          categoryName: catName,
+          type: 'weight_diverted',
+          title: `Waste Diverted (${cleanKg} kg)`,
+          reason: `Landfill diversion credit (${cleanKg} kg × 2 pts/kg)`,
+          points: weightPts,
+          awardedAt
+        });
+      }
+    }
+  }
+
+  const ecoPoints = pointHistory.reduce((sum, entry) => sum + entry.points, 0);
+
+  let level = 'Green Starter';
+  let nextLevelName: string | null = 'Eco-Conscious Neighbor';
+  let pointsToNextLevel = Math.max(0, 100 - ecoPoints);
+
+  if (ecoPoints >= 500) {
+    level = 'Zero-Waste Champion';
+    nextLevelName = null;
+    pointsToNextLevel = 0;
+  } else if (ecoPoints >= 250) {
+    level = 'Community Eco-Warrior';
+    nextLevelName = 'Zero-Waste Champion';
+    pointsToNextLevel = 500 - ecoPoints;
+  } else if (ecoPoints >= 100) {
+    level = 'Eco-Conscious Neighbor';
+    nextLevelName = 'Community Eco-Warrior';
+    pointsToNextLevel = 250 - ecoPoints;
+  }
+
+  const getUnlockTimestamp = (items: GamificationPickupInput[], thresholdIndex: number): string | undefined => {
+    const item = items[thresholdIndex - 1];
+    return item ? item.completedAt || item.updatedAt : undefined;
+  };
+
+  const buildProgress = (current: number, target: number) => {
+    const clampedCurrent = Math.min(current, target);
+    return {
+      progressCurrent: current,
+      progressTarget: target,
+      progressPercent: target > 0 ? Math.min(100, Math.round((clampedCurrent / target) * 100)) : 0
+    };
+  };
+
+  const firstPickupProg = buildProgress(completedPickupsCount, 1);
+  const ecoWarriorProg = buildProgress(segregatedPickupsCount, 3);
+  const recyclingProProg = buildProgress(recycledStreamCount, 3);
+  const segregationMasterProg = buildProgress(distinctSegregatedCategories, 3);
+  const streakContributorProg = buildProgress(completedPickupsCount, 5);
+  const zeroWasteGuardianProg = buildProgress(Math.round(totalDivertedKg * 10) / 10, 50);
+
+  // Track timestamp when distinct categories hit 3
+  let distinctCategoryUnlockAt: string | undefined;
+  if (distinctSegregatedCategories >= 3) {
+    const seen = new Set<string>();
+    for (const p of segregated) {
+      seen.add((p.categoryName || p.categoryId || 'sorted').trim().toLowerCase());
+      if (seen.size >= 3) {
+        distinctCategoryUnlockAt = p.completedAt || p.updatedAt;
+        break;
+      }
+    }
+  }
+
+  // Track timestamp when cumulative segregated weight hit 50 kg
+  let guardianUnlockAt: string | undefined;
+  if (totalDivertedKg >= 50) {
+    let runningKg = 0;
+    for (const p of segregated) {
+      const kg = Number(p.actualQuantityKg ?? p.quantityKg ?? 0);
+      if (Number.isFinite(kg) && kg > 0) runningKg += kg;
+      if (runningKg >= 50) {
+        guardianUnlockAt = p.completedAt || p.updatedAt;
+        break;
+      }
+    }
+  }
+
+  const badges: CitizenBadge[] = [
+    {
+      id: 'first-pickup',
+      title: 'First Green Step',
+      description: 'Completed your very first municipal doorstep waste collection.',
+      criteriaLabel: 'Complete 1 pickup',
+      category: 'frequency',
+      tier: 'bronze',
+      earned: completedPickupsCount >= 1,
+      ...firstPickupProg,
+      unitLabel: 'pickups',
+      earnedAt: completedPickupsCount >= 1 ? getUnlockTimestamp(completed, 1) : undefined
+    },
+    {
+      id: 'eco-warrior',
+      title: 'Eco-Warrior',
+      description: 'Consistently separated waste cleanly across 3 completed household pickups.',
+      criteriaLabel: '3 segregated pickups',
+      category: 'segregation',
+      tier: 'emerald',
+      earned: segregatedPickupsCount >= 3,
+      ...ecoWarriorProg,
+      unitLabel: 'segregated',
+      earnedAt: segregatedPickupsCount >= 3 ? getUnlockTimestamp(segregated, 3) : undefined
+    },
+    {
+      id: 'recycling-pro',
+      title: 'Recycling Pro',
+      description: 'Diverted dry Recyclable, Plastic, Paper, or E-Waste across 3 verified pickups.',
+      criteriaLabel: '3 recycling pickups',
+      category: 'segregation',
+      tier: 'silver',
+      earned: recycledStreamCount >= 3,
+      ...recyclingProProg,
+      unitLabel: 'recycled',
+      earnedAt: recycledStreamCount >= 3 ? getUnlockTimestamp(recycled, 3) : undefined
+    },
+    {
+      id: 'segregation-master',
+      title: 'Segregation Master',
+      description: 'Sorted waste accurately into 3 or more distinct municipal material streams.',
+      criteriaLabel: '3 sorted waste types',
+      category: 'segregation',
+      tier: 'gold',
+      earned: distinctSegregatedCategories >= 3,
+      ...segregationMasterProg,
+      unitLabel: 'categories',
+      earnedAt: distinctCategoryUnlockAt
+    },
+    {
+      id: 'consistent-contributor',
+      title: 'Streak Contributor',
+      description: 'Maintained steady collection frequency with 5 completed doorstep pickups.',
+      criteriaLabel: 'Complete 5 pickups',
+      category: 'frequency',
+      tier: 'silver',
+      earned: completedPickupsCount >= 5,
+      ...streakContributorProg,
+      unitLabel: 'pickups',
+      earnedAt: completedPickupsCount >= 5 ? getUnlockTimestamp(completed, 5) : undefined
+    },
+    {
+      id: 'zero-waste-guardian',
+      title: 'Zero-Waste Guardian',
+      description: 'Diverted 50 kg or more of properly segregated waste away from landfills.',
+      criteriaLabel: 'Divert 50 kg sorted',
+      category: 'impact',
+      tier: 'gold',
+      earned: totalDivertedKg >= 50,
+      ...zeroWasteGuardianProg,
+      unitLabel: 'kg',
+      earnedAt: guardianUnlockAt
+    }
+  ];
+
+  const earnedBadgesCount = badges.filter((b) => b.earned).length;
+
+  return {
+    ecoPoints,
+    level,
+    nextLevelName,
+    pointsToNextLevel,
+    completedPickupsCount,
+    segregatedPickupsCount,
+    segregationRatePercent,
+    recycledStreamCount,
+    distinctSegregatedCategories,
+    totalDivertedKg,
+    earnedBadgesCount,
+    totalBadgesCount: badges.length,
+    badges,
+    pointHistory
   };
 }
 

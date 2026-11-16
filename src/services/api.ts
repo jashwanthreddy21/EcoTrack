@@ -255,6 +255,7 @@ class ApiClient {
     extra?: {
       actualQuantityKg?: number;
       completionRemarks?: string;
+      segregationVerified?: boolean;
       missedReason?: string;
       missedRemarks?: string;
       remarks?: string;
@@ -275,6 +276,7 @@ class ApiClient {
       scannedCode: string;
       actualQuantityKg: number;
       completionRemarks?: string;
+      segregationVerified?: boolean;
       collectorId?: string;
       changedBy?: string;
       changedByName?: string;

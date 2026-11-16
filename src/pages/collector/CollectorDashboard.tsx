@@ -40,6 +40,7 @@ interface CollectorDashboardProps {
     extra?: {
       actualQuantityKg?: number;
       completionRemarks?: string;
+      segregationVerified?: boolean;
       missedReason?: string;
       missedRemarks?: string;
     }
@@ -75,6 +76,7 @@ export const CollectorDashboard: React.FC<CollectorDashboardProps> = ({
   // Form states
   const [actualKg, setActualKg] = useState<number>(10);
   const [completionNotes, setCompletionNotes] = useState('');
+  const [segregationVerified, setSegregationVerified] = useState<boolean>(true);
   const [missedReason, setMissedReason] = useState('Citizen unavailable');
   const [missedRemarks, setMissedRemarks] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
@@ -195,7 +197,8 @@ export const CollectorDashboard: React.FC<CollectorDashboardProps> = ({
     try {
       await onUpdateStatus(completeModalPickup.id, 'Completed', {
         actualQuantityKg: Number(actualKg),
-        completionRemarks: completionNotes || 'Waste weighed and collected properly'
+        completionRemarks: completionNotes || 'Waste weighed and collected properly',
+        segregationVerified
       });
       setCompleteModalPickup(null);
     } catch (err: any) {
@@ -545,6 +548,7 @@ export const CollectorDashboard: React.FC<CollectorDashboardProps> = ({
                               setCompleteModalPickup(p);
                               setActualKg(p.quantityKg);
                               setCompletionNotes('');
+                              setSegregationVerified(p.categoryId !== 'cat-general');
                             }}
                             className="px-3.5 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs transition flex items-center gap-1.5 whitespace-nowrap"
                           >
@@ -663,6 +667,24 @@ export const CollectorDashboard: React.FC<CollectorDashboardProps> = ({
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 focus:bg-white focus:border-emerald-600 focus:outline-hidden font-medium"
                 />
               </div>
+
+              <label className="flex items-start gap-2.5 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-emerald-50/40 transition">
+                <input
+                  type="checkbox"
+                  data-testid="collector-segregation-checkbox"
+                  checked={segregationVerified}
+                  onChange={(e) => setSegregationVerified(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-600"
+                />
+                <span>
+                  <span className="block font-bold text-slate-800">
+                    Properly segregated at source (verified)
+                  </span>
+                  <span className="block text-[11px] text-slate-500 mt-0.5">
+                    Confirms the household sorted waste cleanly into its designated stream for EcoPoints &amp; badge progress.
+                  </span>
+                </span>
+              </label>
 
               <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
                 <button

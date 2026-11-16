@@ -39,7 +39,9 @@ import {
   buildQrSuccessFeedbackData,
   decodeGooglePolyline,
   optimizePendingPickupsLocally,
-  parseGoogleComputeRoutesResponse
+  parseGoogleComputeRoutesResponse,
+  isProperlySegregatedPickup,
+  evaluateCitizenGamification
 } from './ecoLogic.ts';
 
 test('calculateCompletionRate computes percentages properly', () => {
@@ -879,6 +881,149 @@ test('parseGoogleComputeRoutesResponse reorders intermediates using optimizedInt
   assert.equal(parsed!.totalDistanceKm, 4.2);
   assert.equal(parsed!.totalDurationMin, 10);
 });
+
+test('isProperlySegregatedPickup distinguishes sorted streams, explicit overrides, and general waste', () => {
+  assert.equal(
+    isProperlySegregatedPickup({ id: 'p1', categoryId: 'cat-organic', categoryName: 'Organic Waste', status: 'Completed' }),
+    true
+  );
+  assert.equal(
+    isProperlySegregatedPickup({ id: 'p2', categoryId: 'cat-general', categoryName: 'General Waste', status: 'Completed' }),
+    false
+  );
+  assert.equal(
+    isProperlySegregatedPickup({ id: 'p3', categoryId: 'cat-general', categoryName: 'General Waste', status: 'Completed', segregationVerified: true }),
+    true
+  );
+  assert.equal(
+    isProperlySegregatedPickup({ id: 'p4', categoryId: 'cat-recyclable', categoryName: 'Recyclable Waste', status: 'Completed', segregationVerified: false }),
+    false
+  );
+  assert.equal(
+    isProperlySegregatedPickup({ id: 'p5', categoryId: 'cat-recyclable', categoryName: 'Recyclable Waste', status: 'In Progress' }),
+    false
+  );
+});
+
+test('evaluateCitizenGamification handles empty state and unlocks Eco-Warrior and Recycling Pro badges accurately', () => {
+  const emptySummary = evaluateCitizenGamification([]);
+  assert.equal(emptySummary.ecoPoints, 0);
+  assert.equal(emptySummary.level, 'Green Starter');
+  assert.equal(emptySummary.earnedBadgesCount, 0);
+  assert.equal(emptySummary.totalBadgesCount, 6);
+  assert.equal(emptySummary.badges.every((b) => !b.earned && b.progressPercent === 0), true);
+  assert.deepEqual(emptySummary.pointHistory, []);
+
+  const summary = evaluateCitizenGamification([
+    {
+      id: 'req-1',
+      requestNumber: 'ECOTRACK-REQ-1001',
+      categoryId: 'cat-organic',
+      categoryName: 'Organic Waste',
+      actualQuantityKg: 16.5,
+      status: 'Completed',
+      segregationVerified: true,
+      completedAt: '2026-11-01T08:15:00Z'
+    },
+    {
+      id: 'req-2',
+      requestNumber: 'ECOTRACK-REQ-1013',
+      categoryId: 'cat-recyclable',
+      categoryName: 'Recyclable Waste',
+      actualQuantityKg: 12,
+      status: 'Completed',
+      qrVerified: true,
+      segregationVerified: true,
+      completedAt: '2026-10-24T10:20:00Z'
+    },
+    {
+      id: 'req-3',
+      requestNumber: 'ECOTRACK-REQ-1014',
+      categoryId: 'cat-paper',
+      categoryName: 'Paper Waste',
+      actualQuantityKg: 9.5,
+      status: 'Completed',
+      segregationVerified: true,
+      completedAt: '2026-10-18T11:05:00Z'
+    },
+    {
+      id: 'req-4',
+      requestNumber: 'ECOTRACK-REQ-1015',
+      categoryId: 'cat-plastic',
+      categoryName: 'Plastic Waste',
+      actualQuantityKg: 7,
+      status: 'Completed',
+      qrVerified: true,
+      segregationVerified: true,
+      completedAt: '2026-10-11T08:40:00Z'
+    },
+    {
+      id: 'req-5',
+      requestNumber: 'ECOTRACK-REQ-1011',
+      categoryId: 'cat-organic',
+      categoryName: 'Organic Waste',
+      quantityKg: 14,
+      status: 'In Progress'
+    }
+  ]);
+
+  assert.equal(summary.completedPickupsCount, 4);
+  assert.equal(summary.segregatedPickupsCount, 4);
+  assert.equal(summary.segregationRatePercent, 100);
+  assert.equal(summary.recycledStreamCount, 3);
+  assert.equal(summary.distinctSegregatedCategories, 4);
+  assert.equal(summary.totalDivertedKg, 45);
+  assert.equal(summary.ecoPoints, 270);
+  assert.equal(summary.level, 'Community Eco-Warrior');
+  assert.equal(summary.earnedBadgesCount, 4);
+
+  const ecoWarrior = summary.badges.find((b) => b.id === 'eco-warrior');
+  const recyclingPro = summary.badges.find((b) => b.id === 'recycling-pro');
+  const streak = summary.badges.find((b) => b.id === 'consistent-contributor');
+  const guardian = summary.badges.find((b) => b.id === 'zero-waste-guardian');
+
+  assert.equal(ecoWarrior?.earned, true);
+  assert.equal(recyclingPro?.earned, true);
+  assert.equal(streak?.earned, false);
+  assert.equal(streak?.progressCurrent, 4);
+  assert.equal(streak?.progressTarget, 5);
+  assert.equal(guardian?.earned, false);
+  assert.equal(guardian?.progressCurrent, 45);
+  assert.equal(guardian?.progressTarget, 50);
+
+  // Point History ledger checks: 14 entries newest-first, exact sum === ecoPoints
+  assert.equal(summary.pointHistory.length, 14);
+  assert.equal(
+    summary.pointHistory.reduce((acc, entry) => acc + entry.points, 0),
+    summary.ecoPoints
+  );
+  assert.equal(summary.pointHistory[0].pickupId, 'req-1');
+  assert.equal(summary.pointHistory[0].title, 'Pickup Completed');
+  assert.equal(summary.pointHistory[0].points, 25);
+  assert.equal(summary.pointHistory[1].title, 'Source Segregation Verified');
+  assert.equal(summary.pointHistory[1].points, 15);
+  assert.equal(summary.pointHistory[2].title, 'Waste Diverted (16.5 kg)');
+  assert.equal(summary.pointHistory[2].points, 33);
+
+  // Unsorted General Waste pickup awards base Pickup Completed (+25) only
+  const unsortedSummary = evaluateCitizenGamification([
+    {
+      id: 'req-gen',
+      requestNumber: 'ECOTRACK-REQ-2005',
+      categoryId: 'cat-general',
+      categoryName: 'General Waste',
+      actualQuantityKg: 10,
+      status: 'Completed',
+      qrVerified: true,
+      completedAt: '2026-11-02T09:00:00Z'
+    }
+  ]);
+  assert.equal(unsortedSummary.ecoPoints, 25);
+  assert.equal(unsortedSummary.pointHistory.length, 1);
+  assert.equal(unsortedSummary.pointHistory[0].title, 'Pickup Completed');
+  assert.equal(unsortedSummary.pointHistory[0].points, 25);
+});
+
 
 
 

@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { StatCard } from '../../components/common/StatCard.tsx';
 import { StatusBadge } from '../../components/common/StatusBadge.tsx';
+import { CitizenProfileBadges } from '../../components/citizen/CitizenProfileBadges.tsx';
+import { CitizenPointHistory } from '../../components/citizen/CitizenPointHistory.tsx';
 import { Household, PickupRequest, User, UserLocationSelection } from '../../types/index.ts';
 
 interface CitizenDashboardProps {
@@ -121,6 +123,21 @@ export const CitizenDashboard: React.FC<CitizenDashboardProps> = ({
           color="purple"
         />
       </div>
+
+      {/* Citizen Profile & Virtual Sustainability Badges */}
+      <CitizenProfileBadges
+        currentUser={currentUser}
+        pickups={citizenPickups}
+        selectedLocation={selectedLocation}
+      />
+
+      {/* Citizen Point History Ledger */}
+      <CitizenPointHistory
+        pickups={citizenPickups}
+        onSelectPickup={onSelectPickup}
+        onNavigate={onNavigate}
+        onOpenRequestModal={onOpenRequestModal}
+      />
 
       {/* Active Pickup Live Progress Tracker (if any) */}
       {activePickup && (

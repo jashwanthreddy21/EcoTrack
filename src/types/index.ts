@@ -101,6 +101,7 @@ export interface PickupRequest {
   qrScannedCode?: string;
   qrVerifiedAt?: string;
   qrVerifiedBy?: string;
+  segregationVerified?: boolean;
   statusHistory: PickupStatusHistory[];
   createdAt: string;
   updatedAt: string;
@@ -284,3 +285,60 @@ export interface ChatSession {
   createdAt: string;
   lastActivity: string;
 }
+
+// -------------------------------------------------------------
+// CITIZEN GAMIFICATION & BADGES TYPES
+// -------------------------------------------------------------
+export type BadgeCategory = 'frequency' | 'segregation' | 'impact';
+export type BadgeTier = 'bronze' | 'silver' | 'gold' | 'emerald';
+
+export interface CitizenBadge {
+  id: string;
+  title: string;
+  description: string;
+  criteriaLabel: string;
+  category: BadgeCategory;
+  tier: BadgeTier;
+  earned: boolean;
+  progressCurrent: number;
+  progressTarget: number;
+  progressPercent: number;
+  unitLabel: string;
+  earnedAt?: string;
+}
+
+export type PointActivityType =
+  | 'pickup_completed'
+  | 'segregation_bonus'
+  | 'qr_verified'
+  | 'weight_diverted';
+
+export interface CitizenPointHistoryEntry {
+  id: string;
+  pickupId: string;
+  requestNumber: string;
+  categoryName: string;
+  type: PointActivityType;
+  title: string;
+  reason: string;
+  points: number;
+  awardedAt: string;
+}
+
+export interface CitizenGamificationSummary {
+  ecoPoints: number;
+  level: string;
+  nextLevelName: string | null;
+  pointsToNextLevel: number;
+  completedPickupsCount: number;
+  segregatedPickupsCount: number;
+  segregationRatePercent: number;
+  recycledStreamCount: number;
+  distinctSegregatedCategories: number;
+  totalDivertedKg: number;
+  earnedBadgesCount: number;
+  totalBadgesCount: number;
+  badges: CitizenBadge[];
+  pointHistory: CitizenPointHistoryEntry[];
+}
+
