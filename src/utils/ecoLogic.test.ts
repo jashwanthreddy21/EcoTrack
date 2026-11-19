@@ -41,7 +41,9 @@ import {
   optimizePendingPickupsLocally,
   parseGoogleComputeRoutesResponse,
   isProperlySegregatedPickup,
-  evaluateCitizenGamification
+  evaluateCitizenGamification,
+  extractGoogleAccountEmail,
+  formatGoogleAuthErrorMessage
 } from './ecoLogic.ts';
 
 test('calculateCompletionRate computes percentages properly', () => {
@@ -1023,6 +1025,36 @@ test('evaluateCitizenGamification handles empty state and unlocks Eco-Warrior an
   assert.equal(unsortedSummary.pointHistory[0].title, 'Pickup Completed');
   assert.equal(unsortedSummary.pointHistory[0].points, 25);
 });
+
+test('extractGoogleAccountEmail and formatGoogleAuthErrorMessage handle provider fallback and actionable errors', () => {
+  assert.equal(
+    extractGoogleAccountEmail('citizen@gmail.com', [{ email: 'alt@gmail.com' }]),
+    'citizen@gmail.com'
+  );
+  assert.equal(
+    extractGoogleAccountEmail(null, [null, { email: '  resident@gmail.com  ' }]),
+    'resident@gmail.com'
+  );
+  assert.equal(extractGoogleAccountEmail(undefined, []), '');
+
+  assert.match(
+    formatGoogleAuthErrorMessage('auth/unauthorized-domain', '', 'ecotrack.vercel.app'),
+    /ecotrack\.vercel\.app/
+  );
+  assert.match(
+    formatGoogleAuthErrorMessage('auth/popup-blocked'),
+    /popup was blocked/i
+  );
+  assert.match(
+    formatGoogleAuthErrorMessage('auth/popup-closed-by-user'),
+    /cancelled before completing/i
+  );
+  assert.match(
+    formatGoogleAuthErrorMessage('auth/operation-not-allowed'),
+    /Enable the Google provider/i
+  );
+});
+
 
 
 

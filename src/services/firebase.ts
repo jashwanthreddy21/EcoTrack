@@ -1,7 +1,18 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer, collection, getDocs } from 'firebase/firestore';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  signOut,
+  onAuthStateChanged,
+  User as FirebaseUser
+} from 'firebase/auth';
+import { getFirestore, doc, getDocFromServer, setDoc } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
+import { User } from '../types/index.ts';
+import { extractGoogleAccountEmail, formatGoogleAuthErrorMessage } from '../utils/ecoLogic.ts';
 
 // Initialize Firebase App singleton
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -12,16 +23,40 @@ export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 // Initialize Firebase Auth
 export const auth = getAuth(app);
 
-// Configure Google Auth Provider with Workspace scopes
-export const googleProvider = new GoogleAuthProvider();
-googleProvider.addScope('https://www.googleapis.com/auth/tasks');
-googleProvider.addScope('https://www.googleapis.com/auth/chat.spaces.readonly');
-googleProvider.addScope('https://www.googleapis.com/auth/chat.messages.create');
-googleProvider.addScope('https://www.googleapis.com/auth/chat.messages.readonly');
+// Clean Google Auth Provider for Citizen Sign-Up & Sign-In (standard profile + email only; no restricted Workspace scopes)
+export const citizenGoogleProvider = new GoogleAuthProvider();
+citizenGoogleProvider.addScope('email');
+citizenGoogleProvider.addScope('profile');
+citizenGoogleProvider.setCustomParameters({ prompt: 'select_account' });
+
+// Elevated Google Auth Provider with Workspace scopes (used only when linking Google Tasks / Google Chat after sign-in)
+export const workspaceGoogleProvider = new GoogleAuthProvider();
+workspaceGoogleProvider.addScope('https://www.googleapis.com/auth/tasks');
+workspaceGoogleProvider.addScope('https://www.googleapis.com/auth/chat.spaces.readonly');
+workspaceGoogleProvider.addScope('https://www.googleapis.com/auth/chat.messages.create');
+workspaceGoogleProvider.addScope('https://www.googleapis.com/auth/chat.messages.readonly');
+workspaceGoogleProvider.setCustomParameters({ prompt: 'consent select_account' });
+
+// Backward-compatible export for citizen Google authentication
+export const googleProvider = citizenGoogleProvider;
 
 // In-memory token cache (never stored in localStorage as per Workspace security guidelines)
 let cachedAccessToken: string | null = null;
 let isSigningIn = false;
+
+export interface GoogleAuthResult {
+  user: FirebaseUser;
+  email: string;
+  accessToken: string | null;
+}
+
+export interface SignInWithGoogleOptions {
+  includeWorkspaceScopes?: boolean;
+}
+
+export const resolveFirebaseUserEmail = (user: FirebaseUser): string => {
+  return extractGoogleAccountEmail(user?.email, user?.providerData);
+};
 
 export const initAuthListener = (
   onSuccess?: (user: FirebaseUser, token: string | null) => void,
@@ -37,16 +72,46 @@ export const initAuthListener = (
   });
 };
 
-export const signInWithGoogle = async (): Promise<{ user: FirebaseUser; accessToken: string | null } | null> => {
+export const consumeGoogleRedirectResult = async (): Promise<GoogleAuthResult | null> => {
   try {
-    isSigningIn = true;
-    const result = await signInWithPopup(auth, googleProvider);
+    const result = await getRedirectResult(auth);
+    if (!result?.user) return null;
     const credential = GoogleAuthProvider.credentialFromResult(result);
     cachedAccessToken = credential?.accessToken || null;
-    return { user: result.user, accessToken: cachedAccessToken };
-  } catch (error) {
-    console.warn('Google Sign-In Popup cancelled or skipped:', error);
-    return null;
+    const email = resolveFirebaseUserEmail(result.user);
+    return { user: result.user, email, accessToken: cachedAccessToken };
+  } catch (error: any) {
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+    throw new Error(formatGoogleAuthErrorMessage(error?.code, error?.message, hostname));
+  }
+};
+
+export const signInWithGoogle = async (
+  options: SignInWithGoogleOptions = {}
+): Promise<GoogleAuthResult | null> => {
+  if (isSigningIn) {
+    throw new Error('Google sign-in is already in progress. Please check the Google window.');
+  }
+
+  const provider = options.includeWorkspaceScopes ? workspaceGoogleProvider : citizenGoogleProvider;
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  const isTopLevelWindow =
+    typeof window !== 'undefined' ? window.self === window.top : false;
+
+  try {
+    isSigningIn = true;
+    const result = await signInWithPopup(auth, provider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    cachedAccessToken = credential?.accessToken || null;
+    const email = resolveFirebaseUserEmail(result.user);
+    return { user: result.user, email, accessToken: cachedAccessToken };
+  } catch (error: any) {
+    // On standalone top-level tabs (e.g. mobile or Vercel), fall back cleanly to redirect if popups are blocked
+    if (error?.code === 'auth/popup-blocked' && isTopLevelWindow) {
+      await signInWithRedirect(auth, provider);
+      return null;
+    }
+    throw new Error(formatGoogleAuthErrorMessage(error?.code, error?.message, hostname));
   } finally {
     isSigningIn = false;
   }
@@ -61,12 +126,39 @@ export const logoutFirebase = async (): Promise<void> => {
   cachedAccessToken = null;
 };
 
+// Persist authenticated Citizen profile in Firestore using blueprint schema field bounds
+export async function syncUserToFirestore(
+  firebaseUser: FirebaseUser,
+  appUser: User
+): Promise<void> {
+  const docPath = `users/${firebaseUser.uid}`;
+  try {
+    await setDoc(
+      doc(db, 'users', firebaseUser.uid),
+      {
+        id: appUser.id,
+        name: (appUser.name || 'EcoTrack Citizen').slice(0, 100),
+        email: (appUser.email || '').slice(0, 100),
+        role: appUser.role,
+        phone: (appUser.phone || '').slice(0, 20),
+        area: (appUser.area || 'Warangal Urban').slice(0, 100),
+        ward: (appUser.ward || 'Ward 1').slice(0, 50),
+        active: appUser.active !== false,
+        createdAt: appUser.createdAt || new Date().toISOString()
+      },
+      { merge: true }
+    );
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, docPath);
+  }
+}
+
 // Firestore connection test as per firebase-integration skill
 export async function testFirestoreConnection(): Promise<boolean> {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
     return true;
-  } catch (error) {
+  } catch {
     // Normal in newly provisioned project without 'test' doc
     return true;
   }
@@ -79,7 +171,7 @@ export enum OperationType {
   DELETE = 'delete',
   LIST = 'list',
   GET = 'get',
-  WRITE = 'write',
+  WRITE = 'write'
 }
 
 export interface FirestoreErrorInfo {
@@ -92,12 +184,16 @@ export interface FirestoreErrorInfo {
   };
 }
 
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
+export function handleFirestoreError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null
+): never {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
       userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
+      email: auth.currentUser?.email
     },
     operationType,
     path

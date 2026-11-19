@@ -1988,3 +1988,52 @@ export function evaluateCitizenGamification(
   };
 }
 
+// -------------------------------------------------------------
+// GOOGLE AUTH HELPERS (EMAIL EXTRACTION & ACTIONABLE ERRORS)
+// -------------------------------------------------------------
+export function extractGoogleAccountEmail(
+  primaryEmail?: string | null,
+  providerData?: Array<{ email?: string | null } | null> | null
+): string {
+  const direct = typeof primaryEmail === 'string' ? primaryEmail.trim() : '';
+  if (direct) return direct;
+
+  if (Array.isArray(providerData)) {
+    for (const item of providerData) {
+      const candidate = typeof item?.email === 'string' ? item.email.trim() : '';
+      if (candidate) return candidate;
+    }
+  }
+  return '';
+}
+
+export function formatGoogleAuthErrorMessage(
+  errorCode?: string,
+  rawMessage?: string,
+  hostname?: string
+): string {
+  const code = (errorCode || '').trim();
+  const host = (hostname || '').trim() || 'this domain';
+
+  switch (code) {
+    case 'auth/unauthorized-domain':
+      return `Google Sign-In is not authorized for "${host}". Add "${host}" under Firebase Console -> Authentication -> Settings -> Authorized domains.`;
+    case 'auth/popup-blocked':
+      return 'The Google sign-in popup was blocked by your browser. Please allow popups for this site and try again.';
+    case 'auth/popup-closed-by-user':
+    case 'auth/cancelled-popup-request':
+      return 'Google sign-in was cancelled before completing. Please try again.';
+    case 'auth/operation-not-allowed':
+      return 'Google Sign-In is disabled in Firebase Authentication. Enable the Google provider in Firebase Console -> Authentication -> Sign-in method.';
+    case 'auth/network-request-failed':
+      return 'Network error while connecting to Google Sign-In. Check your internet connection and try again.';
+    case 'auth/account-exists-with-different-credential':
+      return 'An account already exists with this email using email/password login. Please sign in with your password.';
+    case 'auth/user-disabled':
+      return 'This Google account has been disabled. Contact your EcoTrack Administrator.';
+    default:
+      return (rawMessage || '').trim() || 'Google Sign-In failed. Please try again.';
+  }
+}
+
+

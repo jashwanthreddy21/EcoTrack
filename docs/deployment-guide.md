@@ -94,4 +94,9 @@ kubectl get svc -n ecotrack
    - `VITE_API_URL` = `https://<your-render-service-name>.onrender.com/api`
    - `VITE_GOOGLE_MAPS_API_KEY` = `your_google_maps_key` *(optional)*
 5. Click **Deploy**. Vercel will build and assign your production URL (e.g. `https://ecotrack.vercel.app`).
+6. **Enable Google Sign-Up / Sign-In on your Vercel & Render domains**:
+   - Open [Firebase Console](https://console.firebase.google.com) -> **Authentication** -> **Settings** -> **Authorized domains**.
+   - Click **Add domain** and add your Vercel hostname (e.g. `ecotrack.vercel.app`) and Render hostname (e.g. `ecotrack-api.onrender.com`).
+   - Ensure **Google** is enabled under **Authentication -> Sign-in method**.
+
 

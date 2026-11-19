@@ -102,6 +102,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [errorMsg, setErrorMsg] = useState('');
   const [infoMsg, setInfoMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const handleGoogleClick = async () => {
+    setErrorMsg('');
+    setInfoMsg('');
+    setSuccessMsg('');
+    setGoogleLoading(true);
+    try {
+      await onGoogleSignIn();
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Google authentication failed. Please try again.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -368,8 +383,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   <div className="pt-4 mt-2 border-t border-slate-100 space-y-3">
                     <button
                       type="button"
-                      onClick={onGoogleSignIn}
-                      className="w-full min-h-[42px] py-2 px-4 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 transition flex items-center justify-center gap-2 whitespace-nowrap"
+                      disabled={googleLoading || isLoading}
+                      onClick={handleGoogleClick}
+                      className="w-full min-h-[42px] py-2 px-4 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 transition flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-60"
                     >
                       <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
                         <path
@@ -389,7 +405,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                           d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                         />
                       </svg>
-                      <span>Sign in with Google (Citizens)</span>
+                      <span>{googleLoading ? 'Connecting to Google...' : 'Sign in with Google (Citizens)'}</span>
                     </button>
 
                     <div className="text-center text-xs text-slate-600">
@@ -689,8 +705,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   <div className="pt-3 border-t border-slate-100 space-y-2.5">
                     <button
                       type="button"
-                      onClick={onGoogleSignIn}
-                      className="w-full min-h-[40px] py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 transition flex items-center justify-center gap-2 whitespace-nowrap"
+                      disabled={googleLoading || isLoading}
+                      onClick={handleGoogleClick}
+                      className="w-full min-h-[40px] py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 transition flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-60"
                     >
                       <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
                         <path
@@ -710,7 +727,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                           d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                         />
                       </svg>
-                      <span>Sign up with Google</span>
+                      <span>{googleLoading ? 'Connecting to Google...' : 'Sign up with Google'}</span>
                     </button>
 
                     <div className="text-center">

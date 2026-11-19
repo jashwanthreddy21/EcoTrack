@@ -19,7 +19,15 @@ import {
   INITIAL_AREAS,
   INITIAL_NOTIFICATIONS
 } from './services/seedData.ts';
-import { initAuthListener, signInWithGoogle, logoutFirebase, testFirestoreConnection } from './services/firebase.ts';
+import {
+  initAuthListener,
+  signInWithGoogle,
+  consumeGoogleRedirectResult,
+  logoutFirebase,
+  syncUserToFirestore,
+  testFirestoreConnection,
+  GoogleAuthResult
+} from './services/firebase.ts';
 
 // Layout & Common
 import { Navbar } from './components/layout/Navbar.tsx';
@@ -220,21 +228,61 @@ function AppContent() {
     }
     testFirestoreConnection();
 
-    // Setup Firebase Auth listener (quietly sync access token if already signed in)
+    // Setup Firebase Auth listener & recover any pending redirect sign-up result
     const unsubscribe = initAuthListener(
-      (_firebaseUser, token) => {
-        if (token) api.setToken(token);
+      () => {
+        // Firebase auth state active
       },
       () => {
         // signed out
       }
     );
 
+    if (!initialUser) {
+      consumeGoogleRedirectResult()
+        .then(async (redirectResult) => {
+          if (redirectResult) {
+            await finalizeCitizenGoogleSession(redirectResult);
+          }
+        })
+        .catch((err: any) => {
+          showToast(err?.message || 'Google sign-in could not be completed.', 'error');
+        });
+    }
+
     return () => {
       window.removeEventListener('popstate', onPopState);
       unsubscribe();
     };
   }, []);
+
+  const finalizeCitizenGoogleSession = async (result: GoogleAuthResult) => {
+    const email = result.email;
+    if (!email) {
+      throw new Error(
+        'Your Google account did not share an email address. Please grant email access and try again.'
+      );
+    }
+
+    const authRes = await api.googleLogin(
+      email,
+      result.user.displayName || email.split('@')[0] || 'EcoTrack Citizen',
+      'citizen',
+      result.user.photoURL || undefined
+    );
+
+    completeAuthSession(authRes.user, authRes.token);
+    void syncUserToFirestore(result.user, authRes.user).catch(() => {
+      // Non-fatal if Firestore offline/rules differ from standalone API mode
+    });
+
+    showToast(
+      authRes.isNewUser
+        ? `Welcome to EcoTrack, ${authRes.user.name}! Citizen account created via Google.`
+        : `Signed in as ${authRes.user.name} (${authRes.user.role})`,
+      'success'
+    );
+  };
 
   const completeAuthSession = (user: User, token?: string) => {
     setCurrentUser(user);
@@ -268,34 +316,30 @@ function AppContent() {
     navigateAuthRoute('/');
   };
 
-  // Google Sign-In with Firebase Auth (Citizen portal auth or Workspace linking)
+  // Google Sign-In / Sign-Up with Firebase Auth (Citizen portal auth or Workspace linking)
   const handleGoogleSignIn = async () => {
     try {
-      const result = await signInWithGoogle();
-      if (result) {
-        if (!isAuthenticated) {
-          if (result.user.email) {
-            const authRes = await api.googleLogin(
-              result.user.email,
-              result.user.displayName || 'EcoTrack Citizen',
-              'citizen'
-            );
-            if (result.accessToken) api.setToken(result.accessToken);
-            completeAuthSession(authRes.user, authRes.token);
-            showToast(`Signed in as ${authRes.user.name} (${authRes.user.role})`, 'success');
-          }
-        } else {
-          if (result.accessToken) api.setToken(result.accessToken);
-          showToast(
-            result.user.email
-              ? `Google Workspace linked for ${result.user.email}`
-              : `Welcome, ${result.user.displayName || 'Google User'}!`,
-            'success'
-          );
-        }
+      const result = await signInWithGoogle({
+        includeWorkspaceScopes: isAuthenticated
+      });
+      if (!result) return;
+
+      if (!isAuthenticated) {
+        await finalizeCitizenGoogleSession(result);
+      } else {
+        showToast(
+          result.email
+            ? `Google Workspace linked for ${result.email}`
+            : `Welcome, ${result.user.displayName || 'Google User'}!`,
+          'success'
+        );
       }
     } catch (err: any) {
-      showToast(err.message || 'Google Sign-in failed', 'error');
+      const msg = err?.message || 'Google Sign-in failed. Please try again.';
+      showToast(msg, 'error');
+      if (!isAuthenticated) {
+        throw err;
+      }
     }
   };
 

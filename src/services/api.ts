@@ -106,10 +106,15 @@ class ApiClient {
     return res;
   }
 
-  async googleLogin(email: string, name: string, role?: string): Promise<{ token: string; user: User }> {
-    const res = await this.request<{ token: string; user: User }>('/auth/google', {
+  async googleLogin(
+    email: string,
+    name: string,
+    role?: string,
+    avatarUrl?: string
+  ): Promise<{ token: string; user: User; isNewUser?: boolean }> {
+    const res = await this.request<{ token: string; user: User; isNewUser?: boolean }>('/auth/google', {
       method: 'POST',
-      body: JSON.stringify({ email, name, role })
+      body: JSON.stringify({ email, name, role, avatarUrl })
     });
     this.setToken(res.token);
     return res;

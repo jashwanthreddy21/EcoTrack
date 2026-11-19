@@ -773,9 +773,10 @@ app.post('/api/auth/register-staff', (req: Request, res: Response) => {
 });
 
 app.post('/api/auth/google', (req: Request, res: Response) => {
-  const { email, name, role } = req.body;
-  if (!email) {
-    return res.status(400).json({ error: 'Google account email is required' });
+  const { email, name, role, avatarUrl } = req.body;
+  const cleanEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    return res.status(400).json({ error: 'A valid Google account email is required.' });
   }
 
   if (role && role !== 'citizen') {
@@ -784,34 +785,41 @@ app.post('/api/auth/google', (req: Request, res: Response) => {
     });
   }
 
-  const existing = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  const existing = users.find(u => u.email.trim().toLowerCase() === cleanEmail);
   if (existing) {
     if (existing.role !== 'citizen') {
       return res.status(403).json({
         error: `Google sign-in is disabled for ${existing.role} accounts. Please use your dedicated /login/${existing.role} portal with username and password.`
       });
     }
+    if (!existing.avatarUrl && typeof avatarUrl === 'string' && avatarUrl.trim()) {
+      existing.avatarUrl = avatarUrl.trim();
+    }
     const token = `ecotrack-jwt-${existing.id}-${Date.now()}`;
-    return res.json({ token, user: existing });
+    return res.json({ token, user: existing, isNewUser: false });
   }
+
+  const cleanName =
+    typeof name === 'string' && name.trim() ? name.trim() : cleanEmail.split('@')[0];
 
   const newUser = {
     id: `usr-cit-${Date.now()}`,
-    name: name || email.split('@')[0],
-    username: email,
-    email,
+    name: cleanName,
+    username: cleanEmail,
+    email: cleanEmail,
     role: 'citizen' as const,
     phone: '',
     area: 'Warangal Urban',
     ward: 'Ward 1',
     pincode: '506001',
     active: true,
+    ...(typeof avatarUrl === 'string' && avatarUrl.trim() ? { avatarUrl: avatarUrl.trim() } : {}),
     createdAt: new Date().toISOString()
   };
 
   users.push(newUser);
   const token = `ecotrack-jwt-${newUser.id}-${Date.now()}`;
-  res.status(201).json({ token, user: newUser });
+  res.status(201).json({ token, user: newUser, isNewUser: true });
 });
 
 app.post('/api/auth/register', (req: Request, res: Response) => {
