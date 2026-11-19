@@ -1198,7 +1198,7 @@ export const AREA_CENTER_COORDINATES: Record<string, [number, number]> = {
   'University Campus Zone': [18.0312, 79.5395],
   'Hunter Road Corridor': [17.9620, 79.5840],
   'Waddepally Lake Zone': [18.0250, 79.5420],
-  // Hyderabad (GHMC) & Surrounding Districts
+  // Hyderabad (GHMC)
   'Banjara Hills': [17.4156, 78.4347],
   'Gachibowli IT Corridor': [17.4401, 78.3489],
   'Jubilee Hills': [17.4326, 78.4071],
@@ -1207,13 +1207,76 @@ export const AREA_CENTER_COORDINATES: Record<string, [number, number]> = {
   'Kukatpally': [17.4948, 78.3996],
   'Charminar / Old City': [17.3616, 78.4747],
   'LB Nagar': [17.3457, 78.5522],
+  // All Remaining 31 Telangana Districts & Municipal Zones
+  'Vidyanagar (Adilabad)': [19.6641, 78.5320],
+  'Ramavaram (Kothagudem)': [17.5512, 80.6197],
+  'Mothe Road (Jagtial)': [18.7909, 78.9120],
+  'Station Road (Jangaon)': [17.7265, 79.1520],
+  'Ambedkar Center (Bhupalpally)': [18.4362, 79.8655],
+  'Rajiv Nagar (Gadwal)': [16.2336, 77.8080],
+  'Vidya Nagar (Kamareddy)': [18.3202, 78.3419],
+  'Mukarampura': [18.4386, 79.1288],
+  'Bhagatnagar': [18.4265, 79.1350],
+  'Wyra Road': [17.2473, 80.1514],
+  'Mamillagudem': [17.2545, 80.1410],
+  'Asifabad Town': [19.3586, 79.2861],
+  'Station Bazar (Mahabubabad)': [17.5979, 80.0021],
+  'Clock Tower Center (Mahabubnagar)': [16.7488, 78.0035],
+  'Hi-Tech City Colony (Mancherial)': [18.8756, 79.4591],
+  'Ramdas Chowrasta (Medak)': [18.0480, 78.2608],
   'Malkajgiri East': [17.4474, 78.5326],
+  'Kompally': [17.5364, 78.4845],
+  'Mulugu Central': [18.1924, 79.9436],
+  'Housing Board Colony (Nagarkurnool)': [16.4820, 78.3220],
+  'Clock Tower Zone (Nalgonda)': [17.0575, 79.2684],
+  'Subhash Nagar (Narayanpet)': [16.7453, 77.4962],
+  'Shastri Nagar (Nirmal)': [19.0964, 78.3430],
+  'Subhash Nagar (Nizamabad)': [18.6725, 78.0941],
+  'Godavarikhani Central': [18.7519, 79.4744],
+  'Shantinagar (Sircilla)': [18.3892, 78.8091],
   'Rajendranagar': [17.3198, 78.4018],
   'Shamshabad': [17.2544, 78.4021],
   'Patancheru': [17.5287, 78.2667],
-  'Mukarampura': [18.4386, 79.1288],
-  'Wyra Road': [17.2473, 80.1514],
-  'Subhash Nagar (Nizamabad)': [18.6725, 78.0941]
+  'Komati Cheruvu Zone (Siddipet)': [18.1019, 78.8521],
+  'Kudakuda Road (Suryapet)': [17.1398, 79.6239],
+  'MG Road & Vidya Nagar (Suryapet)': [17.1432, 79.6205],
+  'Alampally (Vikarabad)': [17.3380, 77.9048],
+  'KDR Nagar (Wanaparthy)': [16.3622, 78.0628],
+  'Bhongir Fort Zone': [17.5137, 78.8878],
+  // District-name fallbacks
+  'Adilabad': [19.6641, 78.5320],
+  'Bhadradri Kothagudem': [17.5512, 80.6197],
+  'Hanamkonda': [18.0073, 79.5583],
+  'Hyderabad': [17.3850, 78.4867],
+  'Jagtial': [18.7909, 78.9120],
+  'Jangaon': [17.7265, 79.1520],
+  'Jayashankar Bhupalpally': [18.4362, 79.8655],
+  'Jogulamba Gadwal': [16.2336, 77.8080],
+  'Kamareddy': [18.3202, 78.3419],
+  'Karimnagar': [18.4386, 79.1288],
+  'Khammam': [17.2473, 80.1514],
+  'Kumuram Bheem Asifabad': [19.3586, 79.2861],
+  'Mahabubabad': [17.5979, 80.0021],
+  'Mahabubnagar': [16.7488, 78.0035],
+  'Mancherial': [18.8756, 79.4591],
+  'Medak': [18.0480, 78.2608],
+  'Medchal-Malkajgiri': [17.4474, 78.5326],
+  'Mulugu': [18.1924, 79.9436],
+  'Nagarkurnool': [16.4820, 78.3220],
+  'Nalgonda': [17.0575, 79.2684],
+  'Narayanpet': [16.7453, 77.4962],
+  'Nirmal': [19.0964, 78.3430],
+  'Nizamabad': [18.6725, 78.0941],
+  'Peddapalli': [18.7519, 79.4744],
+  'Rajanna Sircilla': [18.3892, 78.8091],
+  'Rangareddy': [17.3198, 78.4018],
+  'Sangareddy': [17.5287, 78.2667],
+  'Siddipet': [18.1019, 78.8521],
+  'Suryapet': [17.1398, 79.6239],
+  'Vikarabad': [17.3380, 77.9048],
+  'Wanaparthy': [16.3622, 78.0628],
+  'Warangal': [17.9784, 79.5941],
+  'Yadadri Bhuvanagiri': [17.5137, 78.8878]
 };
 
 export function isValidCoordinates(latitude?: unknown, longitude?: unknown): boolean {
@@ -2010,14 +2073,16 @@ export function extractGoogleAccountEmail(
 export function formatGoogleAuthErrorMessage(
   errorCode?: string,
   rawMessage?: string,
-  hostname?: string
+  hostname?: string,
+  projectId?: string
 ): string {
   const code = (errorCode || '').trim();
   const host = (hostname || '').trim() || 'this domain';
+  const projectHint = (projectId || '').trim() ? ` (project: ${projectId!.trim()})` : '';
 
   switch (code) {
     case 'auth/unauthorized-domain':
-      return `Google Sign-In is not authorized for "${host}". Add "${host}" under Firebase Console -> Authentication -> Settings -> Authorized domains.`;
+      return `Google Sign-In is not authorized for "${host}". Add "${host}" under Firebase Console${projectHint} -> Authentication -> Settings -> Authorized domains.`;
     case 'auth/popup-blocked':
       return 'The Google sign-in popup was blocked by your browser. Please allow popups for this site and try again.';
     case 'auth/popup-closed-by-user':

@@ -817,9 +817,23 @@ app.post('/api/auth/google', (req: Request, res: Response) => {
     createdAt: new Date().toISOString()
   };
 
+  const newHousehold = {
+    id: `hh-${Date.now()}`,
+    citizenId: newUser.id,
+    citizenName: newUser.name,
+    houseNumber: 'H.No. 1',
+    address: `${newUser.area}, ${newUser.ward}`,
+    area: newUser.area,
+    ward: newUser.ward,
+    landmark: '',
+    pincode: newUser.pincode,
+    createdAt: new Date().toISOString()
+  };
+
   users.push(newUser);
+  households.push(newHousehold);
   const token = `ecotrack-jwt-${newUser.id}-${Date.now()}`;
-  res.status(201).json({ token, user: newUser, isNewUser: true });
+  res.status(201).json({ token, user: newUser, household: newHousehold, isNewUser: true });
 });
 
 app.post('/api/auth/register', (req: Request, res: Response) => {
@@ -1348,12 +1362,17 @@ app.post('/api/locations/areas', (req: Request, res: Response) => {
   };
 
   hierarchyAreas.push(newArea);
-  // Also push to legacy areas array for backwards compatibility
+  const matchedCity = cities.find(c => c.id === cityId);
+  const matchedDistrict = matchedCity ? districts.find(d => d.id === matchedCity.districtId) : undefined;
   areas.push({
     id: newArea.id,
     name: newArea.name,
     zone: newArea.zone,
-    city: 'Warangal',
+    city: matchedCity?.name || 'Telangana Municipality',
+    district: matchedDistrict?.name,
+    pincode: newArea.pincode,
+    latitude: newArea.latitude,
+    longitude: newArea.longitude,
     wards: newArea.wards
   });
 

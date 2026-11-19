@@ -4,6 +4,7 @@ import { Home, Plus, Edit2, Trash2, MapPin, X, AlertCircle } from 'lucide-react'
 import { ConfirmDialog } from '../../components/common/ConfirmDialog.tsx';
 import { PickupLocationMapPicker } from '../../components/maps/PickupLocationMapPicker.tsx';
 import { formatCoordinates, getAreaCenterCoordinates, isValidCoordinates } from '../../utils/ecoLogic.ts';
+import { TELANGANA_DISTRICTS } from '../../services/seedData.ts';
 
 interface HouseholdManagementProps {
   currentUser: User | null;
@@ -27,10 +28,11 @@ export const HouseholdManagement: React.FC<HouseholdManagementProps> = ({
 
   const [houseNumber, setHouseNumber] = useState('');
   const [address, setAddress] = useState('');
+  const [selectedDistrict, setSelectedDistrict] = useState('all');
   const [area, setArea] = useState(areas[0]?.name || 'Warangal Urban');
   const [ward, setWard] = useState(areas[0]?.wards[0] || 'Ward 1');
   const [landmark, setLandmark] = useState('');
-  const [pincode, setPincode] = useState('506001');
+  const [pincode, setPincode] = useState(areas[0]?.pincode || '506002');
   const defaultCoords = getAreaCenterCoordinates(areas[0]?.name || 'Warangal Urban');
   const [latitude, setLatitude] = useState<number>(defaultCoords[0]);
   const [longitude, setLongitude] = useState<number>(defaultCoords[1]);
@@ -40,18 +42,81 @@ export const HouseholdManagement: React.FC<HouseholdManagementProps> = ({
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const districtOptions = Array.from(
+    new Set([
+      ...TELANGANA_DISTRICTS,
+      ...areas.map((a) => a.district).filter((d): d is string => Boolean(d))
+    ])
+  ).sort((a, b) => a.localeCompare(b));
+
+  const filteredAreas =
+    selectedDistrict === 'all'
+      ? areas
+      : areas.filter((a) => (a.district || '').toLowerCase() === selectedDistrict.toLowerCase());
+
+  const displayedAreas = filteredAreas.length > 0 ? filteredAreas : areas;
   const selectedAreaObj = areas.find(a => a.name === area);
   const availableWards = selectedAreaObj?.wards || ['Ward 1', 'Ward 2', 'Ward 3'];
+
+  const applyAreaSelection = (nextAreaName: string, preserveCoords: boolean = false) => {
+    setArea(nextAreaName);
+    const sel = areas.find(a => a.name === nextAreaName);
+    if (sel) {
+      if (sel.wards.length > 0) setWard(sel.wards[0]);
+      if (sel.pincode) setPincode(sel.pincode);
+      if (sel.district) setSelectedDistrict(sel.district);
+    }
+    if (!preserveCoords) {
+      const [lat, lng] =
+        sel?.latitude !== undefined && sel?.longitude !== undefined
+          ? [sel.latitude, sel.longitude]
+          : getAreaCenterCoordinates(nextAreaName);
+      setLatitude(lat);
+      setLongitude(lng);
+    }
+  };
+
+  const handleDistrictChange = (nextDistrict: string) => {
+    setSelectedDistrict(nextDistrict);
+    if (nextDistrict === 'all') return;
+    const matching = areas.filter(
+      (a) => (a.district || '').toLowerCase() === nextDistrict.toLowerCase()
+    );
+    if (matching.length > 0) {
+      const first = matching[0];
+      setArea(first.name);
+      if (first.wards.length > 0) setWard(first.wards[0]);
+      if (first.pincode) setPincode(first.pincode);
+      if (!editingId) {
+        const [lat, lng] =
+          first.latitude !== undefined && first.longitude !== undefined
+            ? [first.latitude, first.longitude]
+            : getAreaCenterCoordinates(first.name);
+        setLatitude(lat);
+        setLongitude(lng);
+      }
+    } else {
+      // Allow district-level selection if custom district has no sub-area yet
+      setArea(nextDistrict);
+      setWard('Ward 1');
+      if (!editingId) {
+        const [lat, lng] = getAreaCenterCoordinates(nextDistrict);
+        setLatitude(lat);
+        setLongitude(lng);
+      }
+    }
+  };
 
   const resetForm = () => {
     const initialArea = areas[0]?.name || 'Warangal Urban';
     const [lat, lng] = getAreaCenterCoordinates(initialArea);
     setHouseNumber('');
     setAddress('');
+    setSelectedDistrict('all');
     setArea(initialArea);
     setWard(areas[0]?.wards[0] || 'Ward 1');
     setLandmark('');
-    setPincode('506001');
+    setPincode(areas[0]?.pincode || '506002');
     setLatitude(lat);
     setLongitude(lng);
     setPickupLocationNote('');
@@ -62,9 +127,11 @@ export const HouseholdManagement: React.FC<HouseholdManagementProps> = ({
 
   const startEdit = (h: Household) => {
     const [fallbackLat, fallbackLng] = getAreaCenterCoordinates(h.area);
+    const matchedArea = areas.find((a) => a.name === h.area);
     setEditingId(h.id);
     setHouseNumber(h.houseNumber);
     setAddress(h.address);
+    setSelectedDistrict(matchedArea?.district || 'all');
     setArea(h.area);
     setWard(h.ward);
     setLandmark(h.landmark || '');
@@ -204,28 +271,38 @@ export const HouseholdManagement: React.FC<HouseholdManagementProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">
+                <label htmlFor="household-district-select" className="block font-bold text-slate-700 mb-1">
+                  Telangana District ({districtOptions.length} Districts) <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  id="household-district-select"
+                  value={selectedDistrict}
+                  onChange={(e) => handleDistrictChange(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 focus:bg-white focus:border-emerald-600 focus:outline-hidden"
+                >
+                  <option value="all">All Telangana Districts ({districtOptions.length})</option>
+                  {districtOptions.map((dist) => (
+                    <option key={dist} value={dist}>
+                      {dist}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="household-area-select" className="block font-bold text-slate-700 mb-1">
                   Municipal Area / Zone <span className="text-rose-500">*</span>
                 </label>
                 <select
+                  id="household-area-select"
                   value={area}
-                  onChange={(e) => {
-                    const nextArea = e.target.value;
-                    setArea(nextArea);
-                    const sel = areas.find(a => a.name === nextArea);
-                    if (sel && sel.wards.length > 0) setWard(sel.wards[0]);
-                    if (!editingId) {
-                      const [lat, lng] = getAreaCenterCoordinates(nextArea);
-                      setLatitude(lat);
-                      setLongitude(lng);
-                    }
-                  }}
+                  onChange={(e) => applyAreaSelection(e.target.value, Boolean(editingId))}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 focus:bg-white focus:border-emerald-600 focus:outline-hidden"
                   required
                 >
-                  {areas.map((a) => (
+                  {displayedAreas.map((a) => (
                     <option key={a.id} value={a.name}>
-                      {a.name} ({a.zone})
+                      {a.district ? `${a.district} — ` : ''}{a.name} ({a.zone})
                     </option>
                   ))}
                 </select>

@@ -183,6 +183,7 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
   }, [selectedAreaId, areas]);
 
   const handleStateSelect = (stateId: string) => {
+    if (stateId === selectedStateId) return;
     setSelectedStateId(stateId);
     setSelectedDistrictId('');
     setSelectedCityId('');
@@ -195,6 +196,7 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
   };
 
   const handleDistrictSelect = (districtId: string) => {
+    if (districtId === selectedDistrictId) return;
     setSelectedDistrictId(districtId);
     setSelectedCityId('');
     setSelectedAreaId('');
@@ -205,6 +207,7 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
   };
 
   const handleCitySelect = (cityId: string) => {
+    if (cityId === selectedCityId) return;
     setSelectedCityId(cityId);
     setSelectedAreaId('');
     setSelectedWard('');

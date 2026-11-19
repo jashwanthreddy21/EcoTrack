@@ -128,6 +128,10 @@ export interface AreaLocation {
   name: string;
   zone: string;
   city: string;
+  district?: string;
+  pincode?: string;
+  latitude?: number;
+  longitude?: number;
   wards: string[];
 }
 

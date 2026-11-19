@@ -183,7 +183,8 @@ function AppContent() {
         repPickup,
         repArea,
         repCollector,
-        usersData
+        usersData,
+        areasData
       ] = await Promise.all([
         api.getPickups(),
         api.getHouseholds(),
@@ -193,7 +194,8 @@ function AppContent() {
         api.getPickupRequestReport(),
         api.getAreaWiseWasteReport(),
         api.getCollectorPerformanceReport(),
-        api.getUsers()
+        api.getUsers(),
+        api.getAreas()
       ]);
 
       if (pickupsData) setPickups(pickupsData);
@@ -205,6 +207,7 @@ function AppContent() {
       if (repArea?.data) setAreaReport(repArea.data);
       if (repCollector?.data) setCollectorReport(repCollector.data);
       if (usersData) setUsers(usersData);
+      if (areasData && areasData.length > 0) setAreas(areasData);
     } catch (err) {
       console.warn('API data fetch notice, using seed data state:', err);
     } finally {

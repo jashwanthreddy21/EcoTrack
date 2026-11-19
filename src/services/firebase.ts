@@ -14,11 +14,38 @@ import firebaseConfig from '../../firebase-applet-config.json';
 import { User } from '../types/index.ts';
 import { extractGoogleAccountEmail, formatGoogleAuthErrorMessage } from '../utils/ecoLogic.ts';
 
+const envFirebaseApiKey = (import.meta.env.VITE_FIREBASE_API_KEY as string | undefined)?.trim();
+const envFirebaseProjectId = (import.meta.env.VITE_FIREBASE_PROJECT_ID as string | undefined)?.trim();
+const useCustomEnvConfig = Boolean(envFirebaseApiKey && envFirebaseProjectId);
+
+const activeFirebaseConfig = useCustomEnvConfig
+  ? {
+      apiKey: envFirebaseApiKey!,
+      authDomain:
+        (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string | undefined)?.trim() ||
+        `${envFirebaseProjectId}.firebaseapp.com`,
+      projectId: envFirebaseProjectId!,
+      storageBucket:
+        (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string | undefined)?.trim() ||
+        `${envFirebaseProjectId}.firebasestorage.app`,
+      messagingSenderId:
+        (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string | undefined)?.trim() ||
+        firebaseConfig.messagingSenderId,
+      appId:
+        (import.meta.env.VITE_FIREBASE_APP_ID as string | undefined)?.trim() ||
+        firebaseConfig.appId
+    }
+  : firebaseConfig;
+
+const activeDatabaseId =
+  (import.meta.env.VITE_FIREBASE_DATABASE_ID as string | undefined)?.trim() ||
+  (useCustomEnvConfig ? '(default)' : firebaseConfig.firestoreDatabaseId);
+
 // Initialize Firebase App singleton
-export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+export const app = getApps().length > 0 ? getApp() : initializeApp(activeFirebaseConfig);
 
 // Initialize Firestore with specific database ID
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = getFirestore(app, activeDatabaseId);
 
 // Initialize Firebase Auth
 export const auth = getAuth(app);
@@ -82,7 +109,14 @@ export const consumeGoogleRedirectResult = async (): Promise<GoogleAuthResult | 
     return { user: result.user, email, accessToken: cachedAccessToken };
   } catch (error: any) {
     const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
-    throw new Error(formatGoogleAuthErrorMessage(error?.code, error?.message, hostname));
+    throw new Error(
+      formatGoogleAuthErrorMessage(
+        error?.code,
+        error?.message,
+        hostname,
+        activeFirebaseConfig.projectId
+      )
+    );
   }
 };
 
@@ -111,7 +145,14 @@ export const signInWithGoogle = async (
       await signInWithRedirect(auth, provider);
       return null;
     }
-    throw new Error(formatGoogleAuthErrorMessage(error?.code, error?.message, hostname));
+    throw new Error(
+      formatGoogleAuthErrorMessage(
+        error?.code,
+        error?.message,
+        hostname,
+        activeFirebaseConfig.projectId
+      )
+    );
   } finally {
     isSigningIn = false;
   }

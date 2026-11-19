@@ -273,7 +273,7 @@ export const SchedulingPage: React.FC<SchedulingPageProps> = ({
                 >
                   {areas.map((a) => (
                     <option key={a.id} value={a.name}>
-                      {a.name} ({a.zone})
+                      {a.district ? `${a.district} — ` : ''}{a.name} ({a.zone})
                     </option>
                   ))}
                 </select>

@@ -1038,8 +1038,8 @@ test('extractGoogleAccountEmail and formatGoogleAuthErrorMessage handle provider
   assert.equal(extractGoogleAccountEmail(undefined, []), '');
 
   assert.match(
-    formatGoogleAuthErrorMessage('auth/unauthorized-domain', '', 'ecotrack.vercel.app'),
-    /ecotrack\.vercel\.app/
+    formatGoogleAuthErrorMessage('auth/unauthorized-domain', '', 'ecotrack-three-omega.vercel.app', 'gen-lang-client-0500810440'),
+    /ecotrack-three-omega\.vercel\.app.*gen-lang-client-0500810440/
   );
   assert.match(
     formatGoogleAuthErrorMessage('auth/popup-blocked'),
