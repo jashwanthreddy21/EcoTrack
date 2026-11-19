@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Eye,
   EyeOff,
@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import loginBackdropUrl from '../../assets/images/ecotrack_login_backdrop_1794820337604.jpg';
 import { AuthView, getAuthRouteForView, validatePhoneNumber } from '../../utils/ecoLogic.ts';
-import { INITIAL_AREAS, TELANGANA_DISTRICTS } from '../../services/seedData.ts';
+import { useTelanganaLocationHierarchy } from '../../hooks/useTelanganaLocationHierarchy.ts';
 
 interface LoginPageProps {
   view: AuthView;
@@ -43,39 +43,85 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  // Citizen Register form
+  // Citizen Register form (two-step: 1. District -> 2. Fetched Municipal Area)
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [regAddress, setRegAddress] = useState('');
-  const [regDistrict, setRegDistrict] = useState('all');
-  const [regArea, setRegArea] = useState('Warangal Urban');
+  const [regDistrict, setRegDistrict] = useState('');
+  const [regArea, setRegArea] = useState('');
   const [regWard, setRegWard] = useState('Ward 1');
-  const [regPincode, setRegPincode] = useState('506002');
+  const [regPincode, setRegPincode] = useState('');
 
-  // Supervisor / Collector Sign Up form
+  // Supervisor / Collector Sign Up form (two-step: 1. District -> 2. Fetched Municipal Area)
   const [staffName, setStaffName] = useState('');
   const [staffUsername, setStaffUsername] = useState('');
   const [staffPassword, setStaffPassword] = useState('');
   const [staffConfirmPassword, setStaffConfirmPassword] = useState('');
-  const [staffDistrict, setStaffDistrict] = useState('all');
-  const [staffArea, setStaffArea] = useState('Warangal Urban');
+  const [staffDistrict, setStaffDistrict] = useState('');
+  const [staffArea, setStaffArea] = useState('');
 
-  const regFilteredAreas =
-    regDistrict === 'all'
-      ? INITIAL_AREAS
-      : INITIAL_AREAS.filter((a) => (a.district || '').toLowerCase() === regDistrict.toLowerCase());
-  const regDisplayedAreas = regFilteredAreas.length > 0 ? regFilteredAreas : INITIAL_AREAS;
-  const regSelectedAreaObj = INITIAL_AREAS.find((a) => a.name === regArea);
+  const isStaffSignup = view === 'supervisor-signup' || view === 'collector-signup';
+
+  const {
+    districts: regDistricts,
+    municipalAreas: regDisplayedAreas,
+    isLoadingDistricts: isLoadingRegDistricts,
+    isLoadingAreas: isLoadingRegAreas
+  } = useTelanganaLocationHierarchy({
+    selectedDistrict: regDistrict,
+    enabled: view === 'citizen-signup'
+  });
+
+  const {
+    districts: staffDistricts,
+    municipalAreas: staffDisplayedAreas,
+    isLoadingDistricts: isLoadingStaffDistricts,
+    isLoadingAreas: isLoadingStaffAreas
+  } = useTelanganaLocationHierarchy({
+    selectedDistrict: staffDistrict,
+    enabled: isStaffSignup
+  });
+
+  // Sync Citizen Registration area/ward/PIN when district's municipal areas finish fetching
+  useEffect(() => {
+    if (view !== 'citizen-signup' || !regDistrict || isLoadingRegAreas) return;
+    if (regDisplayedAreas.length === 0) {
+      setRegArea('');
+      setRegWard('Ward 1');
+      setRegPincode('');
+      return;
+    }
+    const existing = regDisplayedAreas.find((a) => a.name === regArea);
+    if (existing) {
+      if (existing.wards.length > 0 && !existing.wards.includes(regWard)) {
+        setRegWard(existing.wards[0]);
+      }
+      if (!regPincode && existing.pincode) setRegPincode(existing.pincode);
+      return;
+    }
+    const first = regDisplayedAreas[0];
+    setRegArea(first.name);
+    setRegWard(first.wards[0] || 'Ward 1');
+    setRegPincode(first.pincode || '');
+  }, [view, regDistrict, isLoadingRegAreas, regDisplayedAreas]);
+
+  // Sync Collector / Supervisor area when district's municipal areas finish fetching
+  useEffect(() => {
+    if (!isStaffSignup || !staffDistrict || isLoadingStaffAreas) return;
+    if (staffDisplayedAreas.length === 0) {
+      setStaffArea('');
+      return;
+    }
+    if (!staffDisplayedAreas.some((a) => a.name === staffArea)) {
+      setStaffArea(staffDisplayedAreas[0].name);
+    }
+  }, [isStaffSignup, staffDistrict, isLoadingStaffAreas, staffDisplayedAreas]);
+
+  const regSelectedAreaObj = regDisplayedAreas.find((a) => a.name === regArea);
   const regAvailableWards = regSelectedAreaObj?.wards || ['Ward 1', 'Ward 2', 'Ward 3', 'Ward 4'];
-
-  const staffFilteredAreas =
-    staffDistrict === 'all'
-      ? INITIAL_AREAS
-      : INITIAL_AREAS.filter((a) => (a.district || '').toLowerCase() === staffDistrict.toLowerCase());
-  const staffDisplayedAreas = staffFilteredAreas.length > 0 ? staffFilteredAreas : INITIAL_AREAS;
 
   const [errorMsg, setErrorMsg] = useState('');
   const [infoMsg, setInfoMsg] = useState('');
@@ -125,6 +171,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       setErrorMsg('Password must be at least 6 characters');
       return;
     }
+    if (!regDistrict.trim() || !regArea.trim()) {
+      setErrorMsg('Please select a Telangana District and Municipal Area');
+      return;
+    }
 
     try {
       await onRegisterCitizen({
@@ -168,6 +218,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       setErrorMsg('Passwords do not match');
       return;
     }
+    if (!staffDistrict.trim() || !staffArea.trim()) {
+      setErrorMsg('Please select a Telangana District and Assigned Municipal Area');
+      return;
+    }
 
     try {
       await onRegisterStaff({
@@ -182,8 +236,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       setErrorMsg(err.message || 'Registration failed');
     }
   };
-
-  const isStaffSignup = view === 'supervisor-signup' || view === 'collector-signup';
 
   const cardHeading =
     view === 'supervisor-signup'
@@ -481,26 +533,23 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <div>
                       <label htmlFor="staff-district" className="block font-semibold text-slate-700 mb-1">
-                        Telangana District ({TELANGANA_DISTRICTS.length} Districts)
+                        1. District in Telangana *
                       </label>
                       <select
                         id="staff-district"
                         value={staffDistrict}
                         onChange={(e) => {
-                          const nextDist = e.target.value;
-                          setStaffDistrict(nextDist);
-                          if (nextDist === 'all') return;
-                          const matches = INITIAL_AREAS.filter(
-                            (a) => (a.district || '').toLowerCase() === nextDist.toLowerCase()
-                          );
-                          setStaffArea(matches[0]?.name || nextDist);
+                          setStaffDistrict(e.target.value);
+                          setStaffArea('');
                         }}
+                        disabled={isLoadingStaffDistricts && staffDistricts.length === 0}
                         className="w-full px-3.5 py-2.5 min-h-[42px] rounded-lg border border-slate-200 bg-slate-50/70 text-xs font-medium"
+                        required
                       >
-                        <option value="all">All Telangana Districts ({TELANGANA_DISTRICTS.length})</option>
-                        {TELANGANA_DISTRICTS.map((d) => (
-                          <option key={d} value={d}>
-                            {d}
+                        <option value="">-- Select District --</option>
+                        {staffDistricts.map((d) => (
+                          <option key={d.id} value={d.name}>
+                            {d.name}
                           </option>
                         ))}
                       </select>
@@ -508,24 +557,29 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
                     <div>
                       <label htmlFor="staff-area" className="block font-semibold text-slate-700 mb-1">
-                        Assigned Zone / Municipal Area *
+                        2. Municipal Area / Zone *
                       </label>
                       <select
                         id="staff-area"
                         value={staffArea}
-                        onChange={(e) => {
-                          const nextArea = e.target.value;
-                          setStaffArea(nextArea);
-                          const matched = INITIAL_AREAS.find((a) => a.name === nextArea);
-                          if (matched?.district) setStaffDistrict(matched.district);
-                        }}
-                        className="w-full px-3.5 py-2.5 min-h-[42px] rounded-lg border border-slate-200 bg-slate-50/70 text-xs font-medium"
+                        onChange={(e) => setStaffArea(e.target.value)}
+                        disabled={!staffDistrict || isLoadingStaffAreas || staffDisplayedAreas.length === 0}
+                        className="w-full px-3.5 py-2.5 min-h-[42px] rounded-lg border border-slate-200 bg-slate-50/70 text-xs font-medium disabled:bg-slate-100 disabled:text-slate-400"
+                        required
                       >
-                        {staffDisplayedAreas.map((a) => (
-                          <option key={a.id} value={a.name}>
-                            {a.district ? `${a.district} — ` : ''}{a.name}
-                          </option>
-                        ))}
+                        {!staffDistrict ? (
+                          <option value="">Select District first</option>
+                        ) : isLoadingStaffAreas ? (
+                          <option value="">Loading municipal areas...</option>
+                        ) : staffDisplayedAreas.length === 0 ? (
+                          <option value="">No areas available</option>
+                        ) : (
+                          staffDisplayedAreas.map((a) => (
+                            <option key={a.id} value={a.name}>
+                              {a.name} ({a.zone})
+                            </option>
+                          ))
+                        )}
                       </select>
                     </div>
                   </div>
@@ -663,40 +717,32 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
                       <label htmlFor="citizen-reg-district" className="block font-semibold text-slate-700 mb-1">
-                        District ({TELANGANA_DISTRICTS.length} Telangana) *
+                        1. District in Telangana *
                       </label>
                       <select
                         id="citizen-reg-district"
                         value={regDistrict}
                         onChange={(e) => {
-                          const nextDist = e.target.value;
-                          setRegDistrict(nextDist);
-                          if (nextDist === 'all') return;
-                          const matches = INITIAL_AREAS.filter(
-                            (a) => (a.district || '').toLowerCase() === nextDist.toLowerCase()
-                          );
-                          if (matches.length > 0) {
-                            const first = matches[0];
-                            setRegArea(first.name);
-                            if (first.wards.length > 0) setRegWard(first.wards[0]);
-                            if (first.pincode) setRegPincode(first.pincode);
-                          } else {
-                            setRegArea(nextDist);
-                          }
+                          setRegDistrict(e.target.value);
+                          setRegArea('');
+                          setRegWard('Ward 1');
+                          setRegPincode('');
                         }}
+                        disabled={isLoadingRegDistricts && regDistricts.length === 0}
                         className="w-full p-2 min-h-[40px] rounded-lg border border-slate-200 bg-slate-50/70 text-[11px]"
+                        required
                       >
-                        <option value="all">All Telangana Districts ({TELANGANA_DISTRICTS.length})</option>
-                        {TELANGANA_DISTRICTS.map((d) => (
-                          <option key={d} value={d}>
-                            {d}
+                        <option value="">-- Select District --</option>
+                        {regDistricts.map((d) => (
+                          <option key={d.id} value={d.name}>
+                            {d.name}
                           </option>
                         ))}
                       </select>
                     </div>
                     <div>
                       <label htmlFor="citizen-reg-area" className="block font-semibold text-slate-700 mb-1">
-                        Municipal Area *
+                        2. Municipal Area *
                       </label>
                       <select
                         id="citizen-reg-area"
@@ -704,20 +750,29 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                         onChange={(e) => {
                           const nextArea = e.target.value;
                           setRegArea(nextArea);
-                          const matched = INITIAL_AREAS.find((a) => a.name === nextArea);
+                          const matched = regDisplayedAreas.find((a) => a.name === nextArea);
                           if (matched) {
-                            if (matched.district) setRegDistrict(matched.district);
                             if (matched.wards.length > 0) setRegWard(matched.wards[0]);
                             if (matched.pincode) setRegPincode(matched.pincode);
                           }
                         }}
-                        className="w-full p-2 min-h-[40px] rounded-lg border border-slate-200 bg-slate-50/70 text-[11px]"
+                        disabled={!regDistrict || isLoadingRegAreas || regDisplayedAreas.length === 0}
+                        className="w-full p-2 min-h-[40px] rounded-lg border border-slate-200 bg-slate-50/70 text-[11px] disabled:bg-slate-100 disabled:text-slate-400"
+                        required
                       >
-                        {regDisplayedAreas.map((a) => (
-                          <option key={a.id} value={a.name}>
-                            {a.district ? `${a.district} — ` : ''}{a.name}
-                          </option>
-                        ))}
+                        {!regDistrict ? (
+                          <option value="">Select District first</option>
+                        ) : isLoadingRegAreas ? (
+                          <option value="">Loading municipal areas...</option>
+                        ) : regDisplayedAreas.length === 0 ? (
+                          <option value="">No areas available</option>
+                        ) : (
+                          regDisplayedAreas.map((a) => (
+                            <option key={a.id} value={a.name}>
+                              {a.name} ({a.zone})
+                            </option>
+                          ))
+                        )}
                       </select>
                     </div>
                   </div>
@@ -731,7 +786,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                         id="citizen-reg-ward"
                         value={regWard}
                         onChange={(e) => setRegWard(e.target.value)}
-                        className="w-full p-2 min-h-[40px] rounded-lg border border-slate-200 bg-slate-50/70 text-[11px]"
+                        disabled={!regArea}
+                        className="w-full p-2 min-h-[40px] rounded-lg border border-slate-200 bg-slate-50/70 text-[11px] disabled:bg-slate-100 disabled:text-slate-400"
                       >
                         {regAvailableWards.map((w) => (
                           <option key={w} value={w}>
@@ -749,6 +805,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                         type="text"
                         value={regPincode}
                         onChange={(e) => setRegPincode(e.target.value)}
+                        placeholder="e.g. 506001"
                         className="w-full p-2 min-h-[40px] rounded-lg border border-slate-200 bg-slate-50/70 text-[11px] font-mono tabular-nums"
                         required
                       />

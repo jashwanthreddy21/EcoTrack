@@ -444,6 +444,7 @@ let hierarchyAreas: ServerAreaHierarchyLocation[] = [
   { id: 'area-sangareddy-1', cityId: 'city-sangareddy', name: 'Patancheru', zone: 'Industrial Zone', pincode: '502319', wards: ['Ward 112', 'Ward 113'], isSupported: true, active: true, collectionFrequency: 'Daily 06:30 AM – 11:30 AM', contactPhone: '+91 8455 242129', latitude: 17.5287, longitude: 78.2667 },
   { id: 'area-siddipet-1', cityId: 'city-siddipet', name: 'Komati Cheruvu Zone (Siddipet)', zone: 'Model Ward', pincode: '502103', wards: ['Ward 1', 'Ward 2'], isSupported: true, active: true, collectionFrequency: 'Daily 06:30 AM – 10:30 AM', contactPhone: '+91 8457 222130', latitude: 18.1019, longitude: 78.8521 },
   { id: 'area-suryapet-1', cityId: 'city-suryapet', name: 'Kudakuda Road (Suryapet)', zone: 'Central Zone', pincode: '508213', wards: ['Ward 1', 'Ward 4'], isSupported: true, active: true, collectionFrequency: 'Daily 07:00 AM – 11:00 AM', contactPhone: '+91 8684 220131', latitude: 17.1398, longitude: 79.6239 },
+  { id: 'area-suryapet-2', cityId: 'city-suryapet', name: 'MG Road & Vidya Nagar (Suryapet)', zone: 'North Zone', pincode: '508213', wards: ['Ward 2', 'Ward 5', 'Ward 6'], isSupported: true, active: true, collectionFrequency: 'Daily 07:30 AM – 11:30 AM', contactPhone: '+91 8684 220132', latitude: 17.1432, longitude: 79.6205 },
   { id: 'area-vikarabad-1', cityId: 'city-vikarabad', name: 'Alampally (Vikarabad)', zone: 'Town Zone', pincode: '501101', wards: ['Ward 1', 'Ward 2'], isSupported: true, active: true, collectionFrequency: 'Daily 07:00 AM – 11:00 AM', contactPhone: '+91 8416 252132', latitude: 17.3380, longitude: 77.9048 },
   { id: 'area-wanaparthy-1', cityId: 'city-wanaparthy', name: 'KDR Nagar (Wanaparthy)', zone: 'Town Zone', pincode: '509103', wards: ['Ward 1', 'Ward 3'], isSupported: true, active: true, collectionFrequency: 'Daily 07:00 AM – 11:00 AM', contactPhone: '+91 8545 232133', latitude: 16.3622, longitude: 78.0628 },
   { id: 'area-yadadri-1', cityId: 'city-bhongir', name: 'Bhongir Fort Zone', zone: 'Central Zone', pincode: '508116', wards: ['Ward 1', 'Ward 3'], isSupported: true, active: true, collectionFrequency: 'Daily 07:00 AM – 11:00 AM', contactPhone: '+91 8685 242134', latitude: 17.5137, longitude: 78.8878 },
@@ -1162,10 +1163,30 @@ app.get('/api/locations/cities', (req: Request, res: Response) => {
   res.json({ cities: list });
 });
 
-// Areas (Localities)
+// Areas (Localities) — supports two-step District -> Municipal Area filtering as well as legacy cityId filtering
 app.get('/api/locations/areas', (req: Request, res: Response) => {
-  const { cityId, supportedOnly } = req.query;
-  let list = hierarchyAreas.filter(a => a.active);
+  const { cityId, districtId, district, supportedOnly } = req.query;
+
+  const enrichArea = (area: ServerAreaHierarchyLocation) => {
+    const matchedCity = cities.find(c => c.id === area.cityId);
+    const matchedDistrict = matchedCity ? districts.find(d => d.id === matchedCity.districtId) : undefined;
+    return {
+      ...area,
+      cityName: matchedCity?.name || area.cityName,
+      districtId: matchedDistrict?.id || area.districtId,
+      districtName: matchedDistrict?.name || area.districtName
+    };
+  };
+
+  let list = hierarchyAreas.filter(a => a.active).map(enrichArea);
+  if (districtId) {
+    const targetDistId = String(districtId).trim();
+    list = list.filter(a => a.districtId === targetDistId);
+  }
+  if (district) {
+    const targetDistKey = normalizeDistrictKey(String(district));
+    list = list.filter(a => a.districtName && normalizeDistrictKey(a.districtName) === targetDistKey);
+  }
   if (cityId) {
     list = list.filter(a => a.cityId === cityId);
   }
@@ -1188,9 +1209,24 @@ app.get('/api/locations/wards', (req: Request, res: Response) => {
   res.json({ wards: allWards });
 });
 
-// Legacy backward-compatibility routes for existing views
-app.get('/api/areas', (_req: Request, res: Response) => {
-  res.json({ areas });
+// Legacy backward-compatibility routes for existing views (supports optional ?district= filtering)
+app.get('/api/areas', (req: Request, res: Response) => {
+  const { district, districtId } = req.query;
+  let list = areas;
+  if (districtId) {
+    const dObj = districts.find(d => d.id === String(districtId));
+    if (dObj) {
+      const targetKey = normalizeDistrictKey(dObj.name);
+      list = list.filter(a => a.district && normalizeDistrictKey(a.district) === targetKey);
+    } else {
+      list = [];
+    }
+  }
+  if (district) {
+    const targetKey = normalizeDistrictKey(String(district));
+    list = list.filter(a => a.district && normalizeDistrictKey(a.district) === targetKey);
+  }
+  res.json({ areas: list });
 });
 
 app.get('/api/locations', (_req: Request, res: Response) => {
@@ -1341,14 +1377,29 @@ app.patch('/api/locations/service-area-requests/:id/status', (req: Request, res:
 
 // Admin Add Area
 app.post('/api/locations/areas', (req: Request, res: Response) => {
-  const { cityId, name, zone, pincode, wards, isSupported, collectionFrequency, contactPhone, latitude, longitude } = req.body;
-  if (!cityId || !name || !pincode) {
-    return res.status(400).json({ error: 'City, area name, and pincode are required.' });
+  const { cityId, districtId, district, name, zone, pincode, wards, isSupported, collectionFrequency, contactPhone, latitude, longitude } = req.body;
+  let resolvedCityId = cityId;
+  if (!resolvedCityId && (districtId || district)) {
+    const matchedDist = districtId
+      ? districts.find(d => d.id === districtId)
+      : districts.find(d => normalizeDistrictKey(d.name) === normalizeDistrictKey(String(district)));
+    const distCity = matchedDist ? cities.find(c => c.districtId === matchedDist.id) : undefined;
+    resolvedCityId = distCity?.id;
   }
+
+  if (!resolvedCityId || !name || !pincode) {
+    return res.status(400).json({ error: 'District/City, area name, and pincode are required.' });
+  }
+
+  const matchedCity = cities.find(c => c.id === resolvedCityId);
+  const matchedDistrict = matchedCity ? districts.find(d => d.id === matchedCity.districtId) : undefined;
 
   const newArea: ServerAreaHierarchyLocation = {
     id: `area-${Date.now()}`,
-    cityId,
+    cityId: resolvedCityId,
+    cityName: matchedCity?.name,
+    districtId: matchedDistrict?.id,
+    districtName: matchedDistrict?.name,
     name,
     zone: zone || 'Municipal Zone',
     pincode,
@@ -1362,8 +1413,6 @@ app.post('/api/locations/areas', (req: Request, res: Response) => {
   };
 
   hierarchyAreas.push(newArea);
-  const matchedCity = cities.find(c => c.id === cityId);
-  const matchedDistrict = matchedCity ? districts.find(d => d.id === matchedCity.districtId) : undefined;
   areas.push({
     id: newArea.id,
     name: newArea.name,

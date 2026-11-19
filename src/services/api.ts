@@ -183,8 +183,9 @@ class ApiClient {
   }
 
   // Locations & Categories
-  async getAreas(): Promise<AreaLocation[]> {
-    const res = await this.request<{ areas: AreaLocation[] }>('/areas');
+  async getAreas(district?: string): Promise<AreaLocation[]> {
+    const query = district ? `?district=${encodeURIComponent(district)}` : '';
+    const res = await this.request<{ areas: AreaLocation[] }>(`/areas${query}`);
     return res.areas;
   }
 
@@ -469,19 +470,50 @@ class ApiClient {
     return res.districts || [];
   }
 
+  async getTelanganaDistricts(): Promise<DistrictLocation[]> {
+    const res = await this.request<{ districts: DistrictLocation[] }>('/locations/districts?stateId=state-ts');
+    return res.districts || [];
+  }
+
   async getCities(districtId?: string): Promise<CityLocation[]> {
     const query = districtId ? `?districtId=${encodeURIComponent(districtId)}` : '';
     const res = await this.request<{ cities: CityLocation[] }>(`/locations/cities${query}`);
     return res.cities || [];
   }
 
-  async getAreasHierarchy(cityId?: string, supportedOnly?: boolean): Promise<AreaHierarchyLocation[]> {
+  async getAreasHierarchy(
+    cityOrFilter?: string | { cityId?: string; districtId?: string; district?: string; supportedOnly?: boolean },
+    supportedOnly?: boolean
+  ): Promise<AreaHierarchyLocation[]> {
     const params = new URLSearchParams();
-    if (cityId) params.append('cityId', cityId);
-    if (supportedOnly) params.append('supportedOnly', 'true');
+    if (typeof cityOrFilter === 'string') {
+      if (cityOrFilter) params.append('cityId', cityOrFilter);
+      if (supportedOnly) params.append('supportedOnly', 'true');
+    } else if (cityOrFilter) {
+      if (cityOrFilter.cityId) params.append('cityId', cityOrFilter.cityId);
+      if (cityOrFilter.districtId) params.append('districtId', cityOrFilter.districtId);
+      if (cityOrFilter.district) params.append('district', cityOrFilter.district);
+      if (cityOrFilter.supportedOnly || supportedOnly) params.append('supportedOnly', 'true');
+    } else if (supportedOnly) {
+      params.append('supportedOnly', 'true');
+    }
     const query = params.toString() ? `?${params.toString()}` : '';
     const res = await this.request<{ areas: AreaHierarchyLocation[] }>(`/locations/areas${query}`);
     return res.areas || [];
+  }
+
+  async getMunicipalAreasByDistrict(
+    district: { districtId?: string; districtName?: string },
+    supportedOnly?: boolean
+  ): Promise<AreaHierarchyLocation[]> {
+    return this.getAreasHierarchy(
+      {
+        districtId: district.districtId,
+        district: district.districtName,
+        supportedOnly
+      },
+      supportedOnly
+    );
   }
 
   async getWardsForArea(areaId?: string): Promise<string[]> {
@@ -534,7 +566,14 @@ class ApiClient {
     });
   }
 
-  async addAreaHierarchy(data: Partial<AreaHierarchyLocation> & { latitude?: number; longitude?: number }): Promise<{ success: boolean; area: AreaHierarchyLocation }> {
+  async addAreaHierarchy(
+    data: Partial<AreaHierarchyLocation> & {
+      districtId?: string;
+      district?: string;
+      latitude?: number;
+      longitude?: number;
+    }
+  ): Promise<{ success: boolean; area: AreaHierarchyLocation }> {
     return this.request<{ success: boolean; area: AreaHierarchyLocation }>('/locations/areas', {
       method: 'POST',
       body: JSON.stringify(data)

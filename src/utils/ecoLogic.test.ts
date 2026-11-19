@@ -43,7 +43,9 @@ import {
   isProperlySegregatedPickup,
   evaluateCitizenGamification,
   extractGoogleAccountEmail,
-  formatGoogleAuthErrorMessage
+  formatGoogleAuthErrorMessage,
+  normalizeTelanganaDistrictKey,
+  filterMunicipalAreasByDistrict
 } from './ecoLogic.ts';
 
 test('calculateCompletionRate computes percentages properly', () => {
@@ -1055,7 +1057,33 @@ test('extractGoogleAccountEmail and formatGoogleAuthErrorMessage handle provider
   );
 });
 
+test('normalizeTelanganaDistrictKey and filterMunicipalAreasByDistrict enforce two-step district-first selection', () => {
+  assert.equal(normalizeTelanganaDistrictKey('Suryapet District'), 'suryapet');
+  assert.equal(normalizeTelanganaDistrictKey('Medchal-Malkajgiri'), 'medchalmalkajgiri');
+  assert.equal(normalizeTelanganaDistrictKey(''), '');
 
+  const sampleAreas = [
+    { id: 'area-1', name: 'Warangal Urban', district: 'Warangal', districtId: 'dis-warangal' },
+    { id: 'area-suryapet-1', name: 'Kudakuda Road (Suryapet)', district: 'Suryapet', districtId: 'dis-suryapet' },
+    { id: 'area-suryapet-2', name: 'MG Road & Vidya Nagar (Suryapet)', district: 'Suryapet', districtId: 'dis-suryapet' },
+    { id: 'area-banjara', name: 'Banjara Hills', district: 'Hyderabad', districtId: 'dis-hyderabad' }
+  ];
 
+  // Empty district must yield zero areas so users select a District first
+  assert.deepEqual(filterMunicipalAreasByDistrict(sampleAreas, ''), []);
+  assert.deepEqual(filterMunicipalAreasByDistrict(sampleAreas, null), []);
 
+  // Selecting Suryapet yields ONLY Suryapet municipal areas
+  const suryapetByName = filterMunicipalAreasByDistrict(sampleAreas, 'Suryapet');
+  assert.equal(suryapetByName.length, 2);
+  assert.deepEqual(
+    suryapetByName.map((a) => a.name),
+    ['Kudakuda Road (Suryapet)', 'MG Road & Vidya Nagar (Suryapet)']
+  );
+
+  // Matching by districtId also returns only that district's municipal areas
+  const hyderabadById = filterMunicipalAreasByDistrict(sampleAreas, 'dis-hyderabad');
+  assert.equal(hyderabadById.length, 1);
+  assert.equal(hyderabadById[0].name, 'Banjara Hills');
+});
 

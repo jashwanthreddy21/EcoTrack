@@ -1,12 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import {
-  StateLocation,
-  DistrictLocation,
-  CityLocation,
-  AreaHierarchyLocation,
-  UserLocationSelection
-} from '../../types/index.ts';
+import { UserLocationSelection } from '../../types/index.ts';
 import { api } from '../../services/api.ts';
+import { useTelanganaLocationHierarchy } from '../../hooks/useTelanganaLocationHierarchy.ts';
 import {
   MapPin,
   Compass,
@@ -14,9 +9,7 @@ import {
   CheckCircle2,
   Send,
   Loader2,
-  Building2,
-  ShieldCheck,
-  Sparkles
+  Building2
 } from 'lucide-react';
 
 interface LocationOnboardingModalProps {
@@ -28,22 +21,13 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
   isOpen,
   onConfirm
 }) => {
-  // Datasets
-  const [states, setStates] = useState<StateLocation[]>([]);
-  const [districts, setDistricts] = useState<DistrictLocation[]>([]);
-  const [cities, setCities] = useState<CityLocation[]>([]);
-  const [areas, setAreas] = useState<AreaHierarchyLocation[]>([]);
-
-  // Selections
-  const [selectedStateId, setSelectedStateId] = useState<string>('');
-  const [selectedDistrictId, setSelectedDistrictId] = useState<string>('');
-  const [selectedCityId, setSelectedCityId] = useState<string>('');
+  // Two-step Telangana hierarchy selections
+  const [selectedDistrict, setSelectedDistrict] = useState<string>('');
   const [selectedAreaId, setSelectedAreaId] = useState<string>('');
   const [selectedWard, setSelectedWard] = useState<string>('');
   const [pincode, setPincode] = useState<string>('');
 
   // UI state
-  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isDetectingLocation, setIsDetectingLocation] = useState<boolean>(false);
   const [detectionNotice, setDetectionNotice] = useState<string | null>(null);
   const [detectedCandidate, setDetectedCandidate] = useState<UserLocationSelection | null>(null);
@@ -58,110 +42,16 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
   const [requestSubmittedSuccess, setRequestSubmittedSuccess] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
 
-  // Load States initially
-  useEffect(() => {
-    if (!isOpen) return;
-    const fetchStates = async () => {
-      setIsLoading(true);
-      try {
-        const data = await api.getStates();
-        setStates(data);
-      } catch (err) {
-        console.warn('Failed to load states:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchStates();
-  }, [isOpen]);
-
-  // When State changes -> load Districts
-  useEffect(() => {
-    if (!selectedStateId) {
-      setDistricts([]);
-      setSelectedDistrictId('');
-      setCities([]);
-      setSelectedCityId('');
-      setAreas([]);
-      setSelectedAreaId('');
-      return;
-    }
-    let active = true;
-    const fetchDistricts = async () => {
-      try {
-        const data = await api.getDistricts(selectedStateId);
-        if (!active) return;
-        setDistricts(data);
-        setSelectedDistrictId('');
-        setCities([]);
-        setSelectedCityId('');
-        setAreas([]);
-        setSelectedAreaId('');
-      } catch (err) {
-        console.warn('Failed to load districts:', err);
-      }
-    };
-    fetchDistricts();
-    return () => {
-      active = false;
-    };
-  }, [selectedStateId]);
-
-  // When District changes -> load Cities (auto-select when a single municipality exists)
-  useEffect(() => {
-    if (!selectedDistrictId) {
-      setCities([]);
-      setSelectedCityId('');
-      setAreas([]);
-      setSelectedAreaId('');
-      return;
-    }
-    let active = true;
-    const fetchCities = async () => {
-      try {
-        const data = await api.getCities(selectedDistrictId);
-        if (!active) return;
-        setCities(data);
-        setAreas([]);
-        setSelectedAreaId('');
-        if (data.length === 1) {
-          setSelectedCityId(data[0].id);
-        } else {
-          setSelectedCityId('');
-        }
-      } catch (err) {
-        console.warn('Failed to load cities:', err);
-      }
-    };
-    fetchCities();
-    return () => {
-      active = false;
-    };
-  }, [selectedDistrictId]);
-
-  // When City changes -> load Areas
-  useEffect(() => {
-    if (!selectedCityId) {
-      setAreas([]);
-      setSelectedAreaId('');
-      return;
-    }
-    let active = true;
-    const fetchAreas = async () => {
-      try {
-        const data = await api.getAreasHierarchy(selectedCityId);
-        if (!active) return;
-        setAreas(data);
-        setSelectedAreaId('');
-      } catch (err) {
-        console.warn('Failed to load areas:', err);
-      }
-    };
-    fetchAreas();
-    return () => {
-      active = false;
-    };
-  }, [selectedCityId]);
+  const {
+    districts,
+    selectedDistrictObj,
+    municipalAreas: areas,
+    isLoadingDistricts,
+    isLoadingAreas
+  } = useTelanganaLocationHierarchy({
+    selectedDistrict,
+    enabled: isOpen
+  });
 
   // When Area changes -> auto-fill PIN code & set default Ward
   useEffect(() => {
@@ -182,37 +72,14 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
     }
   }, [selectedAreaId, areas]);
 
-  const handleStateSelect = (stateId: string) => {
-    if (stateId === selectedStateId) return;
-    setSelectedStateId(stateId);
-    setSelectedDistrictId('');
-    setSelectedCityId('');
+  const handleDistrictSelect = (districtName: string) => {
+    if (districtName === selectedDistrict) return;
+    setSelectedDistrict(districtName);
     setSelectedAreaId('');
     setSelectedWard('');
     setPincode('');
-    setDistricts([]);
-    setCities([]);
-    setAreas([]);
-  };
-
-  const handleDistrictSelect = (districtId: string) => {
-    if (districtId === selectedDistrictId) return;
-    setSelectedDistrictId(districtId);
-    setSelectedCityId('');
-    setSelectedAreaId('');
-    setSelectedWard('');
-    setPincode('');
-    setCities([]);
-    setAreas([]);
-  };
-
-  const handleCitySelect = (cityId: string) => {
-    if (cityId === selectedCityId) return;
-    setSelectedCityId(cityId);
-    setSelectedAreaId('');
-    setSelectedWard('');
-    setPincode('');
-    setAreas([]);
+    setShowRequestForm(false);
+    setRequestSubmittedSuccess(false);
   };
 
   const currentArea = areas.find((a) => a.id === selectedAreaId);
@@ -243,10 +110,10 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
             );
           } else {
             setDetectionNotice(
-              'Your coordinates were detected, but no matching municipal ward is configured yet. Please choose your locality from the dropdowns below.'
+              'Your coordinates were detected, but no matching municipal ward is configured yet. Please choose your Telangana district and locality below.'
             );
           }
-        } catch (err: any) {
+        } catch {
           setDetectionNotice('Unable to reverse-geocode coordinates. Please choose manually.');
         } finally {
           setIsDetectingLocation(false);
@@ -256,7 +123,7 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
         setIsDetectingLocation(false);
         if (error.code === error.PERMISSION_DENIED) {
           setDetectionNotice(
-            'Location access was not granted. Please select your State, District, and City from the dropdown options below.'
+            'Location access was not granted. Please select your Telangana District and Municipal Area below.'
           );
         } else {
           setDetectionNotice('Location detection timed out or failed. Please use manual dropdown selection.');
@@ -272,25 +139,20 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
   };
 
   const handleContinueManual = () => {
-    const stateObj = states.find((s) => s.id === selectedStateId);
-    const distObj = districts.find((d) => d.id === selectedDistrictId);
-    const cityObj = cities.find((c) => c.id === selectedCityId);
-    const areaObj = areas.find((a) => a.id === selectedAreaId);
-
-    if (!stateObj || !distObj || !cityObj || !areaObj) return;
+    if (!selectedDistrictObj || !currentArea) return;
 
     const locSelection: UserLocationSelection = {
-      stateId: stateObj.id,
-      stateName: stateObj.name,
-      districtId: distObj.id,
-      districtName: distObj.name,
-      cityId: cityObj.id,
-      cityName: cityObj.name,
-      areaId: areaObj.id,
-      areaName: areaObj.name,
-      ward: selectedWard || areaObj.wards[0] || 'Ward 1',
-      pincode: pincode.trim() || areaObj.pincode,
-      isSupported: areaObj.isSupported,
+      stateId: 'state-ts',
+      stateName: 'Telangana',
+      districtId: selectedDistrictObj.id,
+      districtName: selectedDistrictObj.name,
+      cityId: currentArea.cityId || `city-${selectedDistrictObj.id}`,
+      cityName: currentArea.cityName || `${selectedDistrictObj.name} Municipality`,
+      areaId: currentArea.id,
+      areaName: currentArea.name,
+      ward: selectedWard || currentArea.wards[0] || 'Ward 1',
+      pincode: pincode.trim() || currentArea.pincode,
+      isSupported: currentArea.isSupported,
       confirmedAt: new Date().toISOString()
     };
 
@@ -304,16 +166,11 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
     setIsSubmittingRequest(true);
     setRequestError(null);
     try {
-      const stateObj = states.find((s) => s.id === selectedStateId);
-      const distObj = districts.find((d) => d.id === selectedDistrictId);
-      const cityObj = cities.find((c) => c.id === selectedCityId);
-      const areaObj = areas.find((a) => a.id === selectedAreaId);
-
       await api.submitServiceAreaRequest({
-        stateName: stateObj?.name || 'Telangana',
-        districtName: distObj?.name || 'General',
-        cityName: cityObj?.name || 'General Municipality',
-        areaName: areaObj?.name || 'Requested Locality',
+        stateName: 'Telangana',
+        districtName: selectedDistrictObj?.name || selectedDistrict || 'General',
+        cityName: currentArea?.cityName || `${selectedDistrict || 'Telangana'} Municipality`,
+        areaName: currentArea?.name || 'Requested Locality',
         pincode: pincode || '506001',
         citizenName: requestCitizenName,
         email: requestEmail,
@@ -346,7 +203,7 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
             />
             <div className="min-w-0">
               <span className="inline-block text-[10px] sm:text-[11px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-100 border border-emerald-400/30">
-                EcoTrack • Municipal Waste Platform
+                EcoTrack • Telangana Municipal Waste Platform
               </span>
               <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white mt-1">
                 Welcome to EcoTrack
@@ -354,7 +211,7 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
             </div>
           </div>
           <p className="mt-2.5 sm:mt-3 text-xs sm:text-sm text-emerald-50 leading-relaxed font-normal max-w-xl">
-            Select your location to discover waste collection services available in your area. Your location determines municipal schedules, route collectors, and neighborhood recycling hubs.
+            First select your District in Telangana, then pick your municipal area to view local collection schedules, assigned collectors, and recycling centers.
           </p>
         </div>
 
@@ -430,105 +287,70 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
           <div className="relative flex py-1 items-center">
             <div className="flex-grow border-t border-slate-200"></div>
             <span className="flex-shrink mx-4 text-xs uppercase font-bold tracking-wider text-slate-400">
-              Or Select Manually
+              Or Select Manually (Telangana)
             </span>
             <div className="flex-grow border-t border-slate-200"></div>
           </div>
 
-          {/* Dependent Dropdowns Form */}
+          {/* Two-Step Dependent Dropdowns Form */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* 1. State */}
-            <div>
-              <label htmlFor="onboard-state" className="block text-xs font-bold text-slate-700 mb-1.5">
-                State <span className="text-rose-500">*</span>
-              </label>
-              <select
-                id="onboard-state"
-                value={selectedStateId}
-                onChange={(e) => handleStateSelect(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 bg-white text-xs font-medium text-slate-800 transition"
-              >
-                <option value="">-- Select State --</option>
-                {states.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.code})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* 2. District */}
+            {/* Step 1: District in Telangana */}
             <div>
               <label htmlFor="onboard-district" className="block text-xs font-bold text-slate-700 mb-1.5">
-                District {districts.length > 0 && <span className="text-slate-400 font-normal">({districts.length})</span>}{' '}
+                1. District in Telangana {districts.length > 0 && <span className="text-slate-400 font-normal">({districts.length})</span>}{' '}
                 <span className="text-rose-500">*</span>
               </label>
               <select
                 id="onboard-district"
-                value={selectedDistrictId}
+                value={selectedDistrict}
                 onChange={(e) => handleDistrictSelect(e.target.value)}
-                disabled={!selectedStateId || districts.length === 0}
+                disabled={isLoadingDistricts && districts.length === 0}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 bg-white text-xs font-medium text-slate-800 disabled:bg-slate-100 disabled:text-slate-400 transition"
               >
                 <option value="">
-                  {!selectedStateId ? 'Select State first' : '-- Select District --'}
+                  {isLoadingDistricts && districts.length === 0
+                    ? 'Loading Districts...'
+                    : '-- Select District in Telangana --'}
                 </option>
                 {districts.map((d) => (
-                  <option key={d.id} value={d.id}>
+                  <option key={d.id} value={d.name}>
                     {d.name}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* 3. City / Municipality */}
-            <div>
-              <label htmlFor="onboard-municipality" className="block text-xs font-bold text-slate-700 mb-1.5">
-                City / Municipality <span className="text-rose-500">*</span>
-              </label>
-              <select
-                id="onboard-municipality"
-                value={selectedCityId}
-                onChange={(e) => handleCitySelect(e.target.value)}
-                disabled={!selectedDistrictId || cities.length === 0}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 bg-white text-xs font-medium text-slate-800 disabled:bg-slate-100 disabled:text-slate-400 transition"
-              >
-                <option value="">
-                  {!selectedDistrictId ? 'Select District first' : '-- Select Municipality --'}
-                </option>
-                {cities.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* 4. Area / Locality */}
+            {/* Step 2: Municipal Area / Locality (fetched for chosen district) */}
             <div>
               <label htmlFor="onboard-area" className="block text-xs font-bold text-slate-700 mb-1.5">
-                Area / Locality {areas.length > 0 && <span className="text-slate-400 font-normal">({areas.length})</span>}{' '}
+                2. Municipal Area / Locality {areas.length > 0 && <span className="text-slate-400 font-normal">({areas.length})</span>}{' '}
                 <span className="text-rose-500">*</span>
               </label>
               <select
                 id="onboard-area"
                 value={selectedAreaId}
                 onChange={(e) => setSelectedAreaId(e.target.value)}
-                disabled={!selectedCityId || areas.length === 0}
+                disabled={!selectedDistrict || isLoadingAreas || areas.length === 0}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 bg-white text-xs font-medium text-slate-800 disabled:bg-slate-100 disabled:text-slate-400 transition"
               >
                 <option value="">
-                  {!selectedCityId ? 'Select City first' : '-- Select Area / Locality --'}
+                  {!selectedDistrict
+                    ? 'Select District first'
+                    : isLoadingAreas
+                      ? 'Loading municipal areas...'
+                      : areas.length === 0
+                        ? 'No municipal areas found'
+                        : '-- Select Municipal Area / Locality --'}
                 </option>
                 {areas.map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.name} {!a.isSupported ? '(Service Request Needed)' : ''}
+                    {a.name} ({a.zone}) {!a.isSupported ? '(Service Request Needed)' : ''}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* 5. Ward */}
+            {/* Ward */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
                 Ward Selection {currentArea?.wards && currentArea.wards.length > 0 && '(Available)'}
@@ -551,7 +373,7 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
               </select>
             </div>
 
-            {/* 6. PIN Code */}
+            {/* PIN Code */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
                 Postal PIN Code
@@ -574,6 +396,9 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
               <div>
                 <p className="font-bold text-sm text-emerald-950">
                   Municipal Waste Collection Active in {currentArea.name}
+                </p>
+                <p className="mt-0.5 text-[11px] font-semibold text-emerald-700">
+                  {currentArea.cityName}
                 </p>
                 <p className="mt-1 text-emerald-800 leading-relaxed">
                   Scheduled collection: <span className="font-semibold">{currentArea.collectionFrequency || 'Daily Morning Shifts'}</span>.
@@ -687,7 +512,7 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
             <button
               type="button"
               onClick={handleContinueManual}
-              disabled={!selectedStateId || !selectedDistrictId || !selectedCityId || !selectedAreaId || !isSelectedAreaSupported}
+              disabled={!selectedDistrict || !selectedAreaId || !isSelectedAreaSupported}
               className="w-full sm:w-auto min-h-[44px] px-6 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs tracking-wide transition shadow-md hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               <span>Continue with Selected Location</span>

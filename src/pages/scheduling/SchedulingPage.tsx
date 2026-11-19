@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CollectionSchedule, User, AreaLocation } from '../../types/index.ts';
 import { Calendar, Plus, Clock, MapPin, Truck, Check, X, Users, AlertCircle } from 'lucide-react';
+import { useTelanganaLocationHierarchy } from '../../hooks/useTelanganaLocationHierarchy.ts';
 
 interface SchedulingPageProps {
   schedules: CollectionSchedule[];
@@ -31,13 +32,44 @@ export const SchedulingPage: React.FC<SchedulingPageProps> = ({
     return d.toISOString().split('T')[0];
   });
   const [timeSlot, setTimeSlot] = useState('06:00 AM – 09:00 AM');
-  const [area, setArea] = useState(areas[0]?.name || 'Warangal Urban');
-  const [ward, setWard] = useState(areas[0]?.wards[0] || 'Ward 1');
+  const [selectedDistrict, setSelectedDistrict] = useState('');
+  const [area, setArea] = useState('');
+  const [ward, setWard] = useState('Ward 1');
   const [collectorId, setCollectorId] = useState(collectors[0]?.id || '');
   const [totalPickups, setTotalPickups] = useState(12);
 
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const {
+    districts,
+    municipalAreas,
+    isLoadingDistricts,
+    isLoadingAreas
+  } = useTelanganaLocationHierarchy({
+    selectedDistrict,
+    enabled: isModalOpen,
+    fallbackAreas: areas
+  });
+
+  useEffect(() => {
+    if (!isModalOpen || !selectedDistrict || isLoadingAreas) return;
+    if (municipalAreas.length === 0) {
+      setArea('');
+      setWard('Ward 1');
+      return;
+    }
+    const existing = municipalAreas.find((a) => a.name === area);
+    if (existing) {
+      if (existing.wards.length > 0 && !existing.wards.includes(ward)) {
+        setWard(existing.wards[0]);
+      }
+      return;
+    }
+    const first = municipalAreas[0];
+    setArea(first.name);
+    setWard(first.wards[0] || 'Ward 1');
+  }, [isModalOpen, selectedDistrict, isLoadingAreas, municipalAreas]);
 
   const timeSlots = [
     '06:00 AM – 09:00 AM',
@@ -46,12 +78,16 @@ export const SchedulingPage: React.FC<SchedulingPageProps> = ({
     '03:00 PM – 06:00 PM'
   ];
 
-  const selectedAreaObj = areas.find(a => a.name === area);
+  const selectedAreaObj = municipalAreas.find(a => a.name === area);
   const availableWards = selectedAreaObj?.wards || ['Ward 1', 'Ward 2'];
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+    if (!selectedDistrict.trim() || !area.trim()) {
+      setErrorMsg('Please select a Telangana District and Municipal Area');
+      return;
+    }
     setIsSubmitting(true);
 
     try {
@@ -260,22 +296,53 @@ export const SchedulingPage: React.FC<SchedulingPageProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Municipal Area *</label>
+                <label className="block font-bold text-slate-700 mb-1">1. District in Telangana *</label>
+                <select
+                  value={selectedDistrict}
+                  onChange={(e) => {
+                    setSelectedDistrict(e.target.value);
+                    setArea('');
+                    setWard('Ward 1');
+                  }}
+                  disabled={isLoadingDistricts && districts.length === 0}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 focus:bg-white focus:border-emerald-600 focus:outline-hidden font-medium"
+                  required
+                >
+                  <option value="">-- Select District --</option>
+                  {districts.map((d) => (
+                    <option key={d.id} value={d.name}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">2. Municipal Area *</label>
                 <select
                   value={area}
                   onChange={(e) => {
                     setArea(e.target.value);
-                    const sel = areas.find(a => a.name === e.target.value);
+                    const sel = municipalAreas.find(a => a.name === e.target.value);
                     if (sel && sel.wards.length > 0) setWard(sel.wards[0]);
                   }}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 focus:bg-white focus:border-emerald-600 focus:outline-hidden font-medium"
+                  disabled={!selectedDistrict || isLoadingAreas || municipalAreas.length === 0}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 focus:bg-white focus:border-emerald-600 focus:outline-hidden font-medium disabled:bg-slate-100 disabled:text-slate-400"
                   required
                 >
-                  {areas.map((a) => (
-                    <option key={a.id} value={a.name}>
-                      {a.district ? `${a.district} — ` : ''}{a.name} ({a.zone})
-                    </option>
-                  ))}
+                  {!selectedDistrict ? (
+                    <option value="">Select District first</option>
+                  ) : isLoadingAreas ? (
+                    <option value="">Loading municipal areas...</option>
+                  ) : municipalAreas.length === 0 ? (
+                    <option value="">No areas available</option>
+                  ) : (
+                    municipalAreas.map((a) => (
+                      <option key={a.id} value={a.name}>
+                        {a.name} ({a.zone})
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
@@ -284,7 +351,8 @@ export const SchedulingPage: React.FC<SchedulingPageProps> = ({
                 <select
                   value={ward}
                   onChange={(e) => setWard(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 focus:bg-white focus:border-emerald-600 focus:outline-hidden font-medium"
+                  disabled={!area}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 focus:bg-white focus:border-emerald-600 focus:outline-hidden font-medium disabled:bg-slate-100 disabled:text-slate-400"
                   required
                 >
                   {availableWards.map((w) => (

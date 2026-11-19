@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, AreaLocation, WasteCategory, UserRole, ServiceAreaRequest, AreaHierarchyLocation } from '../../types/index.ts';
 import { Users, Layers, MapPin, Check, X, Shield, Plus, ToggleLeft, ToggleRight, Inbox, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { api } from '../../services/api.ts';
+import { useTelanganaLocationHierarchy } from '../../hooks/useTelanganaLocationHierarchy.ts';
 
 interface UsersManagementProps {
   users: User[];
@@ -151,12 +152,18 @@ export const AreasCategoriesManagement: React.FC<AreasCategoriesProps> = ({
 
   // New Area Form
   const [showAddArea, setShowAddArea] = useState(false);
+  const [newAreaDistrict, setNewAreaDistrict] = useState('Warangal');
   const [newAreaName, setNewAreaName] = useState('');
   const [newAreaZone, setNewAreaZone] = useState('Central Zone');
   const [newAreaPincode, setNewAreaPincode] = useState('506001');
   const [newAreaWards, setNewAreaWards] = useState('Ward 1, Ward 2');
   const [isSupported, setIsSupported] = useState(true);
   const [adminNotice, setAdminNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const { districts: telanganaDistricts } = useTelanganaLocationHierarchy({
+    selectedDistrict: newAreaDistrict,
+    enabled: showAddArea
+  });
 
   useEffect(() => {
     const fetchRequests = async () => {
@@ -190,11 +197,11 @@ export const AreasCategoriesManagement: React.FC<AreasCategoriesProps> = ({
 
   const handleAddArea = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newAreaName.trim()) return;
+    if (!newAreaName.trim() || !newAreaDistrict.trim()) return;
 
     try {
       await api.addAreaHierarchy({
-        cityId: 'city-gwmc-hnk',
+        district: newAreaDistrict,
         name: newAreaName.trim(),
         zone: newAreaZone,
         pincode: newAreaPincode.trim(),
@@ -202,7 +209,7 @@ export const AreasCategoriesManagement: React.FC<AreasCategoriesProps> = ({
         isSupported
       });
 
-      setAdminNotice({ type: 'success', text: `Area ${newAreaName.trim()} created successfully.` });
+      setAdminNotice({ type: 'success', text: `Area ${newAreaName.trim()} (${newAreaDistrict}) created successfully.` });
       setShowAddArea(false);
       setNewAreaName('');
     } catch (err: any) {
@@ -396,7 +403,20 @@ export const AreasCategoriesManagement: React.FC<AreasCategoriesProps> = ({
           {showAddArea && (
             <form onSubmit={handleAddArea} className="p-5 bg-white rounded-2xl border border-slate-200 text-xs space-y-3 shadow-xs">
               <h4 className="font-bold text-slate-900">Register New Service Area</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                <select
+                  value={newAreaDistrict}
+                  onChange={(e) => setNewAreaDistrict(e.target.value)}
+                  className="p-2.5 rounded-xl border border-slate-300 text-xs bg-white"
+                  required
+                >
+                  <option value="">-- Select District --</option>
+                  {telanganaDistricts.map((d) => (
+                    <option key={d.id} value={d.name}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
                 <input
                   type="text"
                   placeholder="Area / Locality Name"

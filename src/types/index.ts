@@ -214,10 +214,15 @@ export interface CityLocation {
 export interface AreaHierarchyLocation {
   id: string;
   cityId: string;
+  cityName?: string;
+  districtId?: string;
+  districtName?: string;
   name: string;
   zone: string;
   pincode: string;
   wards: string[];
+  latitude?: number;
+  longitude?: number;
   isSupported: boolean;
   active: boolean;
   collectionFrequency?: string;

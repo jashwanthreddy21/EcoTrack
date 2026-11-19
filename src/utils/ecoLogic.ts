@@ -2101,4 +2101,35 @@ export function formatGoogleAuthErrorMessage(
   }
 }
 
+// -------------------------------------------------------------
+// TWO-STEP TELANGANA LOCATION HIERARCHY HELPERS
+// -------------------------------------------------------------
+export function normalizeTelanganaDistrictKey(districtName?: string | null): string {
+  if (!districtName) return '';
+  return districtName
+    .replace(/\s+district$/i, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .replace(/kumaram/, 'kumuram');
+}
+
+export function filterMunicipalAreasByDistrict<
+  T extends { district?: string; districtName?: string; districtId?: string }
+>(
+  allAreas: T[],
+  selectedDistrict?: string | null
+): T[] {
+  const target = (selectedDistrict || '').trim();
+  if (!target) {
+    // Two-step hierarchy requires selecting a District before displaying municipal areas
+    return [];
+  }
+  const targetKey = normalizeTelanganaDistrictKey(target);
+  return allAreas.filter((area) => {
+    if (area.districtId && area.districtId === target) return true;
+    const candidateName = area.districtName || area.district;
+    return normalizeTelanganaDistrictKey(candidateName) === targetKey;
+  });
+}
 

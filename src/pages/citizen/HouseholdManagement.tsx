@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Household, User, AreaLocation } from '../../types/index.ts';
 import { Home, Plus, Edit2, Trash2, MapPin, X, AlertCircle } from 'lucide-react';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog.tsx';
 import { PickupLocationMapPicker } from '../../components/maps/PickupLocationMapPicker.tsx';
 import { formatCoordinates, getAreaCenterCoordinates, isValidCoordinates } from '../../utils/ecoLogic.ts';
-import { TELANGANA_DISTRICTS } from '../../services/seedData.ts';
+import { useTelanganaLocationHierarchy } from '../../hooks/useTelanganaLocationHierarchy.ts';
 
 interface HouseholdManagementProps {
   currentUser: User | null;
@@ -28,12 +28,12 @@ export const HouseholdManagement: React.FC<HouseholdManagementProps> = ({
 
   const [houseNumber, setHouseNumber] = useState('');
   const [address, setAddress] = useState('');
-  const [selectedDistrict, setSelectedDistrict] = useState('all');
-  const [area, setArea] = useState(areas[0]?.name || 'Warangal Urban');
-  const [ward, setWard] = useState(areas[0]?.wards[0] || 'Ward 1');
+  const [selectedDistrict, setSelectedDistrict] = useState('');
+  const [area, setArea] = useState('');
+  const [ward, setWard] = useState('Ward 1');
   const [landmark, setLandmark] = useState('');
-  const [pincode, setPincode] = useState(areas[0]?.pincode || '506002');
-  const defaultCoords = getAreaCenterCoordinates(areas[0]?.name || 'Warangal Urban');
+  const [pincode, setPincode] = useState('');
+  const defaultCoords = getAreaCenterCoordinates('Warangal Urban');
   const [latitude, setLatitude] = useState<number>(defaultCoords[0]);
   const [longitude, setLongitude] = useState<number>(defaultCoords[1]);
   const [pickupLocationNote, setPickupLocationNote] = useState('');
@@ -42,31 +42,63 @@ export const HouseholdManagement: React.FC<HouseholdManagementProps> = ({
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const districtOptions = Array.from(
-    new Set([
-      ...TELANGANA_DISTRICTS,
-      ...areas.map((a) => a.district).filter((d): d is string => Boolean(d))
-    ])
-  ).sort((a, b) => a.localeCompare(b));
+  // Two-step Telangana hierarchy: 1. Select District -> 2. Fetch & display only that district's municipal areas
+  const {
+    districts,
+    municipalAreas,
+    isLoadingDistricts,
+    isLoadingAreas
+  } = useTelanganaLocationHierarchy({
+    selectedDistrict,
+    enabled: isAdding,
+    fallbackAreas: areas
+  });
 
-  const filteredAreas =
-    selectedDistrict === 'all'
-      ? areas
-      : areas.filter((a) => (a.district || '').toLowerCase() === selectedDistrict.toLowerCase());
+  // When fetched municipal areas arrive for the chosen district, sync area/ward/PIN/map pin
+  useEffect(() => {
+    if (!isAdding || !selectedDistrict || isLoadingAreas) return;
 
-  const displayedAreas = filteredAreas.length > 0 ? filteredAreas : areas;
-  const selectedAreaObj = areas.find(a => a.name === area);
+    if (municipalAreas.length === 0) {
+      if (!editingId) {
+        setArea('');
+        setWard('Ward 1');
+        setPincode('');
+      }
+      return;
+    }
+
+    const existingMatch = municipalAreas.find((a) => a.name === area);
+    if (existingMatch) {
+      if (existingMatch.wards.length > 0 && !existingMatch.wards.includes(ward)) {
+        setWard(existingMatch.wards[0]);
+      }
+      if (!pincode && existingMatch.pincode) {
+        setPincode(existingMatch.pincode);
+      }
+      return;
+    }
+
+    const first = municipalAreas[0];
+    setArea(first.name);
+    setWard(first.wards[0] || 'Ward 1');
+    setPincode(first.pincode || '');
+    if (!editingId) {
+      setLatitude(first.latitude);
+      setLongitude(first.longitude);
+    }
+  }, [isAdding, selectedDistrict, isLoadingAreas, municipalAreas, editingId]);
+
+  const selectedAreaObj = municipalAreas.find((a) => a.name === area);
   const availableWards = selectedAreaObj?.wards || ['Ward 1', 'Ward 2', 'Ward 3'];
 
   const applyAreaSelection = (nextAreaName: string, preserveCoords: boolean = false) => {
     setArea(nextAreaName);
-    const sel = areas.find(a => a.name === nextAreaName);
+    const sel = municipalAreas.find((a) => a.name === nextAreaName);
     if (sel) {
       if (sel.wards.length > 0) setWard(sel.wards[0]);
       if (sel.pincode) setPincode(sel.pincode);
-      if (sel.district) setSelectedDistrict(sel.district);
     }
-    if (!preserveCoords) {
+    if (!preserveCoords && nextAreaName) {
       const [lat, lng] =
         sel?.latitude !== undefined && sel?.longitude !== undefined
           ? [sel.latitude, sel.longitude]
@@ -78,45 +110,25 @@ export const HouseholdManagement: React.FC<HouseholdManagementProps> = ({
 
   const handleDistrictChange = (nextDistrict: string) => {
     setSelectedDistrict(nextDistrict);
-    if (nextDistrict === 'all') return;
-    const matching = areas.filter(
-      (a) => (a.district || '').toLowerCase() === nextDistrict.toLowerCase()
-    );
-    if (matching.length > 0) {
-      const first = matching[0];
-      setArea(first.name);
-      if (first.wards.length > 0) setWard(first.wards[0]);
-      if (first.pincode) setPincode(first.pincode);
-      if (!editingId) {
-        const [lat, lng] =
-          first.latitude !== undefined && first.longitude !== undefined
-            ? [first.latitude, first.longitude]
-            : getAreaCenterCoordinates(first.name);
-        setLatitude(lat);
-        setLongitude(lng);
-      }
-    } else {
-      // Allow district-level selection if custom district has no sub-area yet
-      setArea(nextDistrict);
-      setWard('Ward 1');
-      if (!editingId) {
-        const [lat, lng] = getAreaCenterCoordinates(nextDistrict);
-        setLatitude(lat);
-        setLongitude(lng);
-      }
+    setArea('');
+    setWard('Ward 1');
+    setPincode('');
+    if (!editingId && nextDistrict) {
+      const [lat, lng] = getAreaCenterCoordinates(nextDistrict);
+      setLatitude(lat);
+      setLongitude(lng);
     }
   };
 
   const resetForm = () => {
-    const initialArea = areas[0]?.name || 'Warangal Urban';
-    const [lat, lng] = getAreaCenterCoordinates(initialArea);
+    const [lat, lng] = getAreaCenterCoordinates('Warangal Urban');
     setHouseNumber('');
     setAddress('');
-    setSelectedDistrict('all');
-    setArea(initialArea);
-    setWard(areas[0]?.wards[0] || 'Ward 1');
+    setSelectedDistrict('');
+    setArea('');
+    setWard('Ward 1');
     setLandmark('');
-    setPincode(areas[0]?.pincode || '506002');
+    setPincode('');
     setLatitude(lat);
     setLongitude(lng);
     setPickupLocationNote('');
@@ -131,7 +143,7 @@ export const HouseholdManagement: React.FC<HouseholdManagementProps> = ({
     setEditingId(h.id);
     setHouseNumber(h.houseNumber);
     setAddress(h.address);
-    setSelectedDistrict(matchedArea?.district || 'all');
+    setSelectedDistrict(matchedArea?.district || '');
     setArea(h.area);
     setWard(h.ward);
     setLandmark(h.landmark || '');
@@ -150,8 +162,12 @@ export const HouseholdManagement: React.FC<HouseholdManagementProps> = ({
       setErrorMsg('Street address is required');
       return;
     }
+    if (!selectedDistrict.trim()) {
+      setErrorMsg('Please select a District in Telangana first');
+      return;
+    }
     if (!area.trim()) {
-      setErrorMsg('Area must be selected');
+      setErrorMsg('Municipal Area must be selected for the chosen district');
       return;
     }
 
@@ -272,18 +288,24 @@ export const HouseholdManagement: React.FC<HouseholdManagementProps> = ({
 
               <div>
                 <label htmlFor="household-district-select" className="block font-bold text-slate-700 mb-1">
-                  Telangana District ({districtOptions.length} Districts) <span className="text-rose-500">*</span>
+                  1. District in Telangana ({districts.length}) <span className="text-rose-500">*</span>
                 </label>
                 <select
                   id="household-district-select"
                   value={selectedDistrict}
                   onChange={(e) => handleDistrictChange(e.target.value)}
+                  disabled={isLoadingDistricts && districts.length === 0}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 focus:bg-white focus:border-emerald-600 focus:outline-hidden"
+                  required
                 >
-                  <option value="all">All Telangana Districts ({districtOptions.length})</option>
-                  {districtOptions.map((dist) => (
-                    <option key={dist} value={dist}>
-                      {dist}
+                  <option value="">
+                    {isLoadingDistricts && districts.length === 0
+                      ? 'Loading Telangana Districts...'
+                      : '-- Select District in Telangana --'}
+                  </option>
+                  {districts.map((dist) => (
+                    <option key={dist.id} value={dist.name}>
+                      {dist.name}
                     </option>
                   ))}
                 </select>
@@ -291,20 +313,29 @@ export const HouseholdManagement: React.FC<HouseholdManagementProps> = ({
 
               <div>
                 <label htmlFor="household-area-select" className="block font-bold text-slate-700 mb-1">
-                  Municipal Area / Zone <span className="text-rose-500">*</span>
+                  2. Municipal Area / Zone <span className="text-rose-500">*</span>
                 </label>
                 <select
                   id="household-area-select"
                   value={area}
                   onChange={(e) => applyAreaSelection(e.target.value, Boolean(editingId))}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 focus:bg-white focus:border-emerald-600 focus:outline-hidden"
+                  disabled={!selectedDistrict || isLoadingAreas || municipalAreas.length === 0}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 focus:bg-white focus:border-emerald-600 focus:outline-hidden disabled:bg-slate-100 disabled:text-slate-400"
                   required
                 >
-                  {displayedAreas.map((a) => (
-                    <option key={a.id} value={a.name}>
-                      {a.district ? `${a.district} — ` : ''}{a.name} ({a.zone})
-                    </option>
-                  ))}
+                  {!selectedDistrict ? (
+                    <option value="">Select District first</option>
+                  ) : isLoadingAreas ? (
+                    <option value="">Loading municipal areas...</option>
+                  ) : municipalAreas.length === 0 ? (
+                    <option value="">No municipal areas found for {selectedDistrict}</option>
+                  ) : (
+                    municipalAreas.map((a) => (
+                      <option key={a.id} value={a.name}>
+                        {a.name} ({a.zone})
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
@@ -315,7 +346,8 @@ export const HouseholdManagement: React.FC<HouseholdManagementProps> = ({
                 <select
                   value={ward}
                   onChange={(e) => setWard(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 focus:bg-white focus:border-emerald-600 focus:outline-hidden"
+                  disabled={!area}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 focus:bg-white focus:border-emerald-600 focus:outline-hidden disabled:bg-slate-100 disabled:text-slate-400"
                   required
                 >
                   {availableWards.map((w) => (
@@ -343,7 +375,7 @@ export const HouseholdManagement: React.FC<HouseholdManagementProps> = ({
                   type="text"
                   value={pincode}
                   onChange={(e) => setPincode(e.target.value)}
-                  placeholder="506001"
+                  placeholder="e.g. 506001"
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 focus:bg-white focus:border-emerald-600 focus:outline-hidden"
                 />
               </div>
