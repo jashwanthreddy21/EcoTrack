@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="ecoLoopGrad" x1="90" y1="40" x2="420" y2="460" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6EA851" />
+      <stop offset="48%" stop-color="#2D6A3E" />
+      <stop offset="100%" stop-color="#19482B" />
+    </linearGradient>
+    <linearGradient id="ecoLeafGrad" x1="150" y1="68" x2="290" y2="200" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#70AA53" />
+      <stop offset="100%" stop-color="#255D36" />
+    </linearGradient>
+    <linearGradient id="ecoTruckGrad" x1="130" y1="220" x2="380" y2="380" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#68A34E" />
+      <stop offset="55%" stop-color="#266138" />
+      <stop offset="100%" stop-color="#1A492B" />
+    </linearGradient>
+    <clipPath id="globeClip">
+      <circle cx="336" cy="222" r="96" />
+    </clipPath>
+  </defs>
+
+  <!-- Pure white rounded app icon backdrop -->
+  <rect width="512" height="512" rx="112" fill="#FFFFFF" />
+
+  <!-- Outer organic rounded-triangle eco loop -->
+  <path
+    d="M248 34C296 34 352 72 394 142C366 118 334 102 302 92C278 85 256 84 236 89C182 102 134 156 108 224C80 296 68 348 94 388C122 430 206 438 304 428C386 420 442 378 452 308C457 274 452 240 442 208C464 252 474 300 464 352C448 432 376 476 254 480C132 484 50 438 42 364C34 292 80 202 132 126C168 72 206 34 248 34Z"
+    fill="url(#ecoLoopGrad)"
+  />
+
+  <!-- Smooth inner-left secondary curl accent -->
+  <path
+    d="M142 132C110 176 96 226 104 264C90 236 92 192 116 150C124 136 134 128 142 132Z"
+    fill="#3E7F49"
+  />
+
+  <!-- Inner upper-left leaf tucked gracefully into top arch -->
+  <path
+    d="M280 70C238 92 192 120 148 190C208 182 258 152 280 102C286 88 286 76 280 70Z"
+    fill="url(#ecoLeafGrad)"
+  />
+  <path
+    d="M275 76C238 106 196 138 154 188C192 152 236 116 275 76Z"
+    fill="#86C164"
+    opacity="0.45"
+  />
+
+  <!-- Wireframe globe on right inside loop -->
+  <g clip-path="url(#globeClip)">
+    <circle cx="336" cy="222" r="86" stroke="url(#ecoLoopGrad)" stroke-width="15" fill="none" />
+    <ellipse cx="336" cy="222" rx="38" ry="86" stroke="#2D6A3E" stroke-width="13" fill="none" />
+    <line x1="336" y1="132" x2="336" y2="312" stroke="#2D6A3E" stroke-width="12" />
+    <path d="M248 182C290 194 382 194 424 182" stroke="#397845" stroke-width="13" stroke-linecap="round" fill="none" />
+    <path d="M248 262C290 250 382 250 424 262" stroke="#235B35" stroke-width="13" stroke-linecap="round" fill="none" />
+    <line x1="244" y1="222" x2="428" y2="222" stroke="#2B673C" stroke-width="13" />
+    <circle cx="408" cy="222" r="15" fill="#235B35" />
+    <!-- Contoured white halo strictly behind truck silhouette (no boxy rectangle!) -->
+    <path
+      d="M150 242H286C296 242 308 246 318 252L346 252C358 252 368 258 374 268L390 296C392 300 394 306 394 312V352H150V242Z"
+      fill="#FFFFFF"
+    />
+  </g>
+
+  <!-- Small green leaf-tip / triangle accent above cargo box -->
+  <path d="M234 226L254 248H224Z" fill="#3E7E48" />
+
+  <!-- Speed motion lines behind truck -->
+  <rect x="132" y="316" width="44" height="9" rx="4.5" fill="#2A663B" />
+  <rect x="150" y="334" width="26" height="9" rx="4.5" fill="#2A663B" />
+
+  <!-- Waste / Recycling Truck cargo box -->
+  <path
+    d="M162 262C162 254.3 168.3 248 176 248H264C271.7 248 278 254.3 278 262V342H162V262Z"
+    fill="url(#ecoTruckGrad)"
+  />
+  <!-- White curved swoosh across cargo box -->
+  <path
+    d="M162 318C198 315 225 292 246 248H260C236 299 204 325 162 329V318Z"
+    fill="#FFFFFF"
+  />
+
+  <!-- Truck cab -->
+  <path
+    d="M288 272C288 265.4 293.4 260 300 260H325C332 260 339 264 342.5 270.5L358 298C359.5 301 360 304.5 360 308V342H288V272Z"
+    fill="#1E5230"
+  />
+  <!-- Cab windshield -->
+  <path
+    d="M302 272H323C326.5 272 330 274 331.5 277.5L342 298H302V272Z"
+    fill="#FFFFFF"
+  />
+
+  <!-- Truck wheels with crisp white ring gap -->
+  <circle cx="212" cy="350" r="27" fill="#FFFFFF" />
+  <circle cx="212" cy="350" r="20" fill="#1C4F2E" />
+  <circle cx="212" cy="350" r="11" fill="#FFFFFF" />
+  <circle cx="212" cy="350" r="5.5" fill="#1C4F2E" />
+
+  <circle cx="318" cy="350" r="27" fill="#FFFFFF" />
+  <circle cx="318" cy="350" r="20" fill="#1C4F2E" />
+  <circle cx="318" cy="350" r="11" fill="#FFFFFF" />
+  <circle cx="318" cy="350" r="5.5" fill="#1C4F2E" />
+</svg>

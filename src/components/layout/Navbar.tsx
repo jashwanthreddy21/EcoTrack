@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { User, AppNotification, UserRole, UserLocationSelection } from '../../types/index.ts';
 import {
-  Recycle,
   Bell,
   Check,
   LogOut,
@@ -59,15 +58,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-emerald-700 to-emerald-500 flex items-center justify-center text-white shadow-xs shrink-0">
-                <Recycle className="w-5 h-5 sm:w-6 sm:h-6" />
-              </div>
+              <img
+                src="/app-icon.svg"
+                alt="EcoTrack App Icon"
+                referrerPolicy="no-referrer"
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white border border-emerald-200/80 p-0.5 object-contain shadow-xs shrink-0"
+              />
               <div className="min-w-0">
                 <div className="text-base sm:text-lg font-black tracking-tight text-slate-900 flex items-center gap-1.5 whitespace-nowrap">
                   <span>EcoTrack</span>
-                  <span className="hidden sm:inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase whitespace-nowrap">
-                    SRU No. 54
-                  </span>
                 </div>
                 <p className="text-[11px] text-slate-500 hidden sm:block font-medium truncate">
                   Smarter Waste Collection. Cleaner Communities.

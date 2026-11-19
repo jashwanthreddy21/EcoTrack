@@ -16,7 +16,6 @@ import {
   Loader2,
   Building2,
   ShieldCheck,
-  Recycle,
   Sparkles
 } from 'lucide-react';
 
@@ -336,9 +335,12 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
         <div className="relative bg-gradient-to-br from-emerald-800 via-emerald-700 to-teal-800 p-4 sm:p-8 text-white overflow-hidden">
           <div className="absolute -right-8 -bottom-8 w-44 h-44 rounded-full bg-emerald-600/30 blur-2xl pointer-events-none" />
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-inner shrink-0">
-              <Recycle className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-200 animate-spin-slow" />
-            </div>
+            <img
+              src="/app-icon.svg"
+              alt="EcoTrack App Icon"
+              referrerPolicy="no-referrer"
+              className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-white p-0.5 shadow-sm border border-emerald-200/50 object-contain shrink-0"
+            />
             <div className="min-w-0">
               <span className="inline-block text-[10px] sm:text-[11px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-100 border border-emerald-400/30">
                 EcoTrack • Municipal Waste Platform

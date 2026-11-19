@@ -28,45 +28,6 @@ interface LoginPageProps {
   isLoading?: boolean;
 }
 
-const EcoTrackLeafMark: React.FC<{ className?: string }> = ({ className = 'w-20 h-20' }) => (
-  <svg
-    viewBox="0 0 120 120"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    className={className}
-    aria-hidden="true"
-  >
-    <defs>
-      <linearGradient id="ecoLeafOuter" x1="20" y1="98" x2="102" y2="16" gradientUnits="userSpaceOnUse">
-        <stop offset="0%" stopColor="#0D7A34" />
-        <stop offset="55%" stopColor="#16A34A" />
-        <stop offset="100%" stopColor="#84CC16" />
-      </linearGradient>
-      <linearGradient id="ecoLeafHighlight" x1="28" y1="90" x2="94" y2="24" gradientUnits="userSpaceOnUse">
-        <stop offset="0%" stopColor="#22C55E" stopOpacity="0.15" />
-        <stop offset="100%" stopColor="#BEF264" stopOpacity="0.7" />
-      </linearGradient>
-    </defs>
-    {/* Leaf Body */}
-    <path
-      d="M98 18C52 18 22 46 22 86C22 90.5 22.8 94.8 24.1 98.8C27.9 100.1 32.1 100.8 36.6 100.8C76.2 100.8 102 68.5 98 18Z"
-      fill="url(#ecoLeafOuter)"
-    />
-    {/* Upper Sunlit Fold */}
-    <path
-      d="M98 18C63 22 36 45 27 83C47 62 72 41 98 18Z"
-      fill="url(#ecoLeafHighlight)"
-    />
-    {/* Crisp Central White Vein */}
-    <path
-      d="M17 104C36 82 60 56 91 27"
-      stroke="#FFFFFF"
-      strokeWidth="4.5"
-      strokeLinecap="round"
-    />
-  </svg>
-);
-
 export const LoginPage: React.FC<LoginPageProps> = ({
   view,
   onNavigateRoute,
@@ -244,8 +205,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           {/* Left Hero Brand Column (positioned in open sky above the illustrated truck) */}
           <section className="lg:col-span-6 flex flex-col items-center lg:items-start text-center lg:text-left lg:pl-10 lg:-mt-44">
             <div className="flex flex-col items-center">
-              <EcoTrackLeafMark className="w-20 h-20 sm:w-24 sm:h-24 drop-shadow-sm" />
-              <h1 className="mt-2 text-4xl sm:text-5xl lg:text-[3.5rem] font-extrabold tracking-tight text-[#085c2e] leading-none">
+              <img
+                src="/app-icon.svg"
+                alt="EcoTrack App Icon"
+                referrerPolicy="no-referrer"
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-white/95 p-1 shadow-md border border-emerald-100/80 object-contain"
+              />
+              <h1 className="mt-2.5 text-4xl sm:text-5xl lg:text-[3.5rem] font-extrabold tracking-tight text-[#085c2e] leading-none">
                 EcoTrack
               </h1>
               <p className="mt-2.5 text-base sm:text-xl font-semibold text-[#0d7a34] tracking-tight">
